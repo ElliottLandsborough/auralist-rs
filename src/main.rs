@@ -1,14 +1,15 @@
-use std::env;
-use rusqlite::{params, Connection, Result};
+use std::{env};
+use rusqlite::{params, Connection, Result as RuResult};
+use walkdir::WalkDir;
+use std::path::Path;
 
 #[derive(Debug)]
-struct Person {
+struct File {
     id: i32,
-    name: String,
-    data: Option<Vec<u8>>,
+    path: String,
 }
 
-fn main() -> Result<()> {
+fn main() -> RuResult<()> {
     let args: Vec<String> = env::args().collect();
 
     if (args.len()) > 1 {
@@ -24,38 +25,66 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn index() -> Result<()> {
+fn index() -> RuResult<()> {
+    let directory = "/Users/elliottlandsborough/Music/TestFiles";
+
+    if !Path::new(directory).exists() {
+        panic!("Directory missing: {:?}", directory)
+    }
+
+    get_files(String::from(directory));
+
+    Ok(())
+}
+
+fn get_files(directory: std::string::String) -> Result<i32, walkdir::Error> {
+    for entry in WalkDir::new(directory) {
+        let entry = match entry {
+            Ok(file) => file,
+            Err(error) => panic!("Problem with file: {:?}", error),
+        };
+
+        println!("{}", entry.path().display());
+
+        let fullPath = entry.path().to_str().unwrap();
+
+        index_file(String::from(fullPath));
+    }
+
+    Ok(0)
+}
+
+fn index_file(path: std::string::String) -> RuResult<()> {
     let conn = Connection::open_in_memory()?;
 
     conn.execute(
-        "CREATE TABLE person (
+        "CREATE TABLE file (
                   id              INTEGER PRIMARY KEY,
-                  name            TEXT NOT NULL,
-                  data            BLOB
+                  path            TEXT NOT NULL,
                   )",
         params![],
     )?;
-    let me = Person {
+    let f = File {
         id: 0,
-        name: "Steven".to_string(),
-        data: None,
+        path: path,
     };
     conn.execute(
-        "INSERT INTO person (name, data) VALUES (?1, ?2)",
-        params![me.name, me.data],
+        "INSERT INTO file (path) VALUES (?1)",
+        params![f.path],
     )?;
 
-    let mut stmt = conn.prepare("SELECT id, name, data FROM person")?;
-    let person_iter = stmt.query_map(params![], |row| {
-        Ok(Person {
+    let mut stmt = conn.prepare("SELECT id, path FROM file")?;
+    let file_iter = stmt.query_map(params![], |row| {
+        Ok(File {
             id: row.get(0)?,
-            name: row.get(1)?,
-            data: row.get(2)?,
+            path: row.get(1)?,
         })
     })?;
 
-    for person in person_iter {
-        println!("Found person {:?}", person.unwrap());
+    println!("Found file {:?}", "RESULT:");
+
+    for file in file_iter {
+        println!("Found file {:?}", file.unwrap());
     }
 
     Ok(())
