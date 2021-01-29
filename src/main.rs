@@ -26,6 +26,7 @@ fn main() -> RuResult<()> {
 }
 
 fn index() -> RuResult<()> {
+    // todo: how do i config manage
     let directory = "/Users/elliottlandsborough/Music/TestFiles";
 
     if !Path::new(directory).exists() {
