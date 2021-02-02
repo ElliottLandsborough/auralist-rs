@@ -2,6 +2,7 @@ use std::{env};
 use rusqlite::{params, Connection, Result as RuResult};
 use walkdir::WalkDir;
 use std::path::Path;
+use ini::Ini;
 
 #[derive(Debug)]
 struct File {
@@ -15,22 +16,46 @@ fn main() -> RuResult<()> {
     if (args.len()) > 1 {
         let command = &args[1];
 
+        if command == "init" {
+            return Ok(init())
+        }
+
         if command == "index" {
             return index()
         }
     }
 
-    println!("Please choose a command e.g 'index'");
+    println!("Please choose a command e.g 'init' or 'index'");
 
     Ok(())
 }
 
+fn init() {
+    let configPath = "conf.ini";
+
+    if Path::new(configPath).exists() {
+        println!("Could not create `conf.ini` as it already exists.");
+
+        return;
+    }
+
+    let mut conf = Ini::new();
+    conf.with_section(None::<String>)
+        .set("encoding", "utf-8");
+    conf.with_section(Some("Files"))
+        .set("directory_to_index", "~/Music")
+        .set("extensions_to_index", "*");
+    conf.write_to_file(configPath).unwrap();
+}
+
 fn index() -> RuResult<()> {
-    // todo: how do i config manage
-    let directory = "/Users/elliottlandsborough/Music/TestFiles";
+    let conf = Ini::load_from_file("conf.ini").unwrap();
+
+    let section = conf.section(Some("Files")).unwrap();
+    let directory = section.get("directory_to_index").unwrap();
 
     if !Path::new(directory).exists() {
-        panic!("Directory missing: {:?}", directory)
+        panic!("Directory set in `conf.ini` missing: `{:?}`", directory)
     }
 
     get_files(String::from(directory));
@@ -47,9 +72,9 @@ fn get_files(directory: std::string::String) -> Result<i32, walkdir::Error> {
 
         println!("{}", entry.path().display());
 
-        let fullPath = entry.path().to_str().unwrap();
+        let full_path = entry.path().to_str().unwrap();
 
-        index_file(String::from(fullPath));
+        index_file(String::from(full_path));
     }
 
     Ok(0)

@@ -8,4 +8,5 @@ edition = "2018"
 
 [dependencies]
 rusqlite = "0.24.2"
+rust-ini = "0.16"
 walkdir = "2"
