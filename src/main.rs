@@ -1,5 +1,5 @@
 use std::{env};
-use rusqlite::{params, Connection, Result as RuResult};
+use rusqlite::{params, Connection, Result as SQLiteResult};
 use walkdir::WalkDir;
 use std::path::Path;
 use ini::Ini;
@@ -10,24 +10,24 @@ struct File {
     path: String,
 }
 
-fn main() -> RuResult<()> {
+fn main() {
     let args: Vec<String> = env::args().collect();
 
     if (args.len()) > 1 {
         let command = &args[1];
 
         if command == "init" {
-            return Ok(init())
+            init();
+            return;
         }
 
         if command == "index" {
-            return index()
+            index();
+            return;
         }
     }
 
     println!("Please choose a command e.g 'init' or 'index'");
-
-    Ok(())
 }
 
 fn init() {
@@ -48,19 +48,19 @@ fn init() {
     conf.write_to_file(configPath).unwrap();
 }
 
-fn index() -> RuResult<()> {
+fn index() {
     let conf = Ini::load_from_file("conf.ini").unwrap();
 
     let section = conf.section(Some("Files")).unwrap();
     let directory = section.get("directory_to_index").unwrap();
 
     if !Path::new(directory).exists() {
-        panic!("Directory set in `conf.ini` missing: `{:?}`", directory)
+        println!("Directory set in `conf.ini` missing: `{:?}`", directory);
+
+        return;
     }
 
     get_files(String::from(directory));
-
-    Ok(())
 }
 
 fn get_files(directory: std::string::String) -> Result<i32, walkdir::Error> {
@@ -80,7 +80,7 @@ fn get_files(directory: std::string::String) -> Result<i32, walkdir::Error> {
     Ok(0)
 }
 
-fn index_file(path: std::string::String) -> RuResult<()> {
+fn index_file(path: std::string::String) -> SQLiteResult<()> {
     let conn = Connection::open_in_memory()?;
 
     conn.execute(
