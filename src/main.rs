@@ -93,9 +93,12 @@ fn index() {
 }
 
 fn db_backup_progress(p: backup::Progress) {
-    // todo: this still doesn't work
-    let remaining = ((p.pagecount - p.remaining) / p.pagecount) * 100;
-    println!("Progress: {}%", remaining);
+    let pagecount = f64::from(p.pagecount);
+    let remaining = f64::from(p.remaining);
+
+    let remaining = ((pagecount - remaining) / pagecount) * 100.0;
+
+    println!("Progress: {}%", remaining.round());
 }
 
 fn initialize_db() -> Result<(), rusqlite::Error> {
