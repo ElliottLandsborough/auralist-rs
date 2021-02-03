@@ -98,18 +98,25 @@ fn db_backup_progress(p: backup::Progress) {
     println!("Progress: {}%", remaining);
 }
 
-fn initialize_db() {
+fn initialize_db() -> Result<(), rusqlite::Error> {
+    println!("Initializing DB...");
+
     let conn = DB.lock().unwrap();
-    conn.execute(
-        "CREATE TABLE file (
-            id      INTEGER PRIMARY KEY,
-            path    TEXT NOT NULL
-        );",
-        params![]
-    );
+    
+    let sql = "CREATE TABLE file (
+        id      INTEGER PRIMARY KEY,
+        path    TEXT NOT NULL
+    );";
+
+    match conn.execute_batch(sql) {
+        Ok(_) => println!("Success."),
+        Err(err) => println!("update failed: {}", err),
+    }
+
+    Ok(())
 }
 
-fn get_files(directory: std::string::String) -> Result<i32, walkdir::Error> {
+fn get_files(directory: std::string::String) -> Result<(), walkdir::Error> {
     println!("Saving files to db...");
     let conn = DB.lock().unwrap();
 
@@ -121,10 +128,13 @@ fn get_files(directory: std::string::String) -> Result<i32, walkdir::Error> {
 
         let full_path = entry.path().to_str().unwrap();
 
-        save_file_in_db(String::from(full_path), &conn);
+        match save_file_in_db(String::from(full_path), &conn) {
+            Ok(_) => println!("."),
+            Err(err) => println!("Update failed: {}", err),
+        }
     }
 
-    Ok(0)
+    Ok(())
 }
 
 fn save_file_in_db(path: std::string::String, conn: &Connection) -> SQLiteResult<()> {    
