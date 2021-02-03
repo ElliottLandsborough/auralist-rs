@@ -1,3 +1,5 @@
 /target
 conf.ini
 auralist.sqlite3
+auralist.sqlite3.gz
+.DS_store

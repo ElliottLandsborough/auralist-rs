@@ -1,15 +1,20 @@
+// Local Packages
+mod db;
+use crate::db::DB;
+
+// Remote Packages
 use std::{env};
 use rusqlite::{backup, params, Connection, Result as SQLiteResult};
 use walkdir::WalkDir;
 use std::path::Path;
 use std::time::Duration;
 use ini::Ini;
-use std::io::prelude::*;
 use flate2::Compression;
 use flate2::bufread::GzEncoder;
+use flate2::bufread::GzDecoder;
 use std::fs::File;
 use std::io::BufReader;
-use std::io::Result as ioResult;
+//use std::error::Error;
 
 #[derive(Debug)]
 struct IndexedFile {
@@ -20,8 +25,6 @@ struct IndexedFile {
 fn main() {
     let args: Vec<String> = env::args().collect();
 
-    let conn = Connection::open_in_memory().unwrap();
-
     if (args.len()) > 1 {
         let command = &args[1];
 
@@ -31,7 +34,7 @@ fn main() {
         }
 
         if command == "index" {
-            index(conn);
+            index();
             return;
         }
     }
@@ -40,9 +43,9 @@ fn main() {
 }
 
 fn init() {
-    let configPath = "conf.ini";
+    let config_path = "conf.ini";
 
-    if Path::new(configPath).exists() {
+    if Path::new(config_path).exists() {
         println!("Could not create `conf.ini` as it already exists.");
 
         return;
@@ -54,10 +57,13 @@ fn init() {
     conf.with_section(Some("Files"))
         .set("directory_to_index", "~/Music")
         .set("extensions_to_index", "*");
-    conf.write_to_file(configPath).unwrap();
+    conf.write_to_file(config_path).unwrap();
 }
 
-fn index(conn: Connection) {
+fn index() {
+    let db_file = "./auralist.sqlite3";
+    let db_backup_file = db_file.to_owned() + ".gz";
+
     let conf = Ini::load_from_file("conf.ini").unwrap();
 
     let section = conf.section(Some("Files")).unwrap();
@@ -69,44 +75,49 @@ fn index(conn: Connection) {
         return;
     }
 
-    initialize_db(&conn);
+    initialize_db();
 
-    get_files(String::from(directory), &conn);
+    get_files(String::from(directory));
 
-    test_db(&conn);
+    backup_db_to_file(db_file, db_backup_progress);
 
-    backup_db_to_file(&conn, "./auralist.sqlite3", db_backup_progress);
+    compress_file(db_file, &db_backup_file);
 
-    compress_file("./auralist.sqlite3");
+    decompress_file(&db_backup_file, db_file);
 
-    //decompress_file("./auralist.sqlite3");
+    // Restore connection from db file
+    restore_db_from_file(db_file, db_backup_progress);
 
-    //restore_db();
+    // Try to query restored db
+    test_db();
 }
 
-fn db_backup_progress(progress: backup::Progress) {
-    // todo: the progress...
-    println!("Backing up...");
+fn db_backup_progress(p: backup::Progress) {
+    // todo: this still doesn't work
+    let remaining = ((p.pagecount - p.remaining) / p.pagecount) * 100;
+    println!("Progress: {}%", remaining);
 }
 
-fn initialize_db(conn: &Connection) {
+fn initialize_db() {
+    let conn = DB.lock().unwrap();
     conn.execute(
         "CREATE TABLE file (
-                  id              INTEGER PRIMARY KEY,
-                  path            TEXT NOT NULL
-                  )",
-        params![],
+            id      INTEGER PRIMARY KEY,
+            path    TEXT NOT NULL
+        );",
+        params![]
     );
 }
 
-fn get_files(directory: std::string::String, conn: &Connection) -> Result<i32, walkdir::Error> {
+fn get_files(directory: std::string::String) -> Result<i32, walkdir::Error> {
+    println!("Saving files to db...");
+    let conn = DB.lock().unwrap();
+
     for entry in WalkDir::new(directory) {
         let entry = match entry {
             Ok(file) => file,
             Err(error) => panic!("Problem with file: {:?}", error),
         };
-
-        println!("{}", entry.path().display());
 
         let full_path = entry.path().to_str().unwrap();
 
@@ -130,7 +141,9 @@ fn save_file_in_db(path: std::string::String, conn: &Connection) -> SQLiteResult
     Ok(())
 }
 
-fn test_db(conn: &Connection) -> SQLiteResult<()> {
+fn test_db() -> SQLiteResult<()> {
+    println!("Query: SELECT id, path FROM file");
+    let conn = DB.lock().unwrap();
     let mut stmt = conn.prepare("SELECT id, path FROM file")?;
     let file_iter = stmt.query_map(params![], |row| {
         Ok(IndexedFile {
@@ -138,8 +151,6 @@ fn test_db(conn: &Connection) -> SQLiteResult<()> {
             path: row.get(1)?,
         })
     })?;
-
-    println!("Found file {:?}", "RESULT:");
 
     for file in file_iter {
         println!("Found file {:?}", file.unwrap());
@@ -149,27 +160,45 @@ fn test_db(conn: &Connection) -> SQLiteResult<()> {
 }
 
 fn backup_db_to_file<P: AsRef<Path>>(
-    src: &Connection,
     dst: P,
     progress: fn(backup::Progress),
 ) -> SQLiteResult<()> {
+    println!("Backing up db to file...");
+    let src = DB.lock().unwrap();
     let mut dst = Connection::open(dst)?;
-    let backup = backup::Backup::new(src, &mut dst)?;
-    backup.run_to_completion(5, Duration::from_millis(250), Some(progress))
+    let backup = backup::Backup::new(&src, &mut dst)?;
+    backup.run_to_completion(1, Duration::from_millis(250), Some(progress))
 }
 
-fn compress_file<P: AsRef<Path>>(path: P) /*-> ioResult<Vec<u8>>*/ {
-    let f = File::open(path);
-    let b = BufReader::new(f.unwrap());
-    let gz = GzEncoder::new(b, Compression::fast());
-    //let mut buffer = Vec::new();
-    //gz.read_to_end(&mut buffer)?;
-    //Ok(buffer)
+fn restore_db_from_file<P: AsRef<Path>>(
+    src: P,
+    progress: fn(backup::Progress),
+) -> SQLiteResult<()> {
+    println!("Restoring db from file...");
+    let src = Connection::open(src)?;
+    let mut dst = DB.lock().unwrap();
+    let backup = backup::Backup::new(&src, &mut dst)?;
+    backup.run_to_completion(1, Duration::from_millis(250), Some(progress))
+}
 
-    for byte in gz.bytes() {
-        println!("{}", byte.unwrap());
-        // todo: output every 64kb to file
-        // todo: decompress file
-        // todo: restore db from file
-    }
+fn compress_file(source: &str, destination: &str) {
+    println!("Compressing file...");
+    let f = File::open(source);
+    let b = BufReader::new(f.unwrap());
+    let mut gz = GzEncoder::new(b, Compression::fast());
+
+    // Write contents to disk.
+    let mut f = File::create(destination).expect("Unable to create file");
+    std::io::copy(&mut gz, &mut f).expect("Unable to copy data");
+}
+
+fn decompress_file(source: &str, destination: &str) {
+    println!("Decompressing file...");
+    let f = File::open(source);
+    let b = BufReader::new(f.unwrap());
+    let mut gz = GzDecoder::new(b);
+
+    // Write contents to disk.
+    let mut f = File::create(destination).expect("Unable to create file");
+    std::io::copy(&mut gz, &mut f).expect("Unable to copy data");
 }
