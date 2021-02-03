@@ -168,7 +168,7 @@ fn compress_file<P: AsRef<Path>>(path: P) /*-> ioResult<Vec<u8>>*/ {
 
     for byte in gz.bytes() {
         println!("{}", byte.unwrap());
-        // todo: output every 50kb to file
+        // todo: output every 64kb to file
         // todo: decompress file
         // todo: restore db from file
     }
