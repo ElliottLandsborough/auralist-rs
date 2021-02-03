@@ -7,6 +7,10 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-rusqlite = "0.24.2"
 rust-ini = "0.16"
 walkdir = "2"
+
+[dependencies.rusqlite]
+version = "0.24.2"
+default-features = false # don't include any defaults
+features = ["backup"] # see rusqlite/blob/master/Cargo.toml

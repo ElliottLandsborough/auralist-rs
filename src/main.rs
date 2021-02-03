@@ -1,7 +1,8 @@
 use std::{env};
-use rusqlite::{params, Connection, Result as SQLiteResult};
+use rusqlite::{backup, params, Connection, Result as SQLiteResult};
 use walkdir::WalkDir;
 use std::path::Path;
+use std::time::Duration;
 use ini::Ini;
 
 #[derive(Debug)]
@@ -13,6 +14,8 @@ struct File {
 fn main() {
     let args: Vec<String> = env::args().collect();
 
+    let conn = Connection::open_in_memory().unwrap();
+
     if (args.len()) > 1 {
         let command = &args[1];
 
@@ -22,7 +25,7 @@ fn main() {
         }
 
         if command == "index" {
-            index();
+            index(conn);
             return;
         }
     }
@@ -48,7 +51,7 @@ fn init() {
     conf.write_to_file(configPath).unwrap();
 }
 
-fn index() {
+fn index(conn: Connection) {
     let conf = Ini::load_from_file("conf.ini").unwrap();
 
     let section = conf.section(Some("Files")).unwrap();
@@ -60,10 +63,31 @@ fn index() {
         return;
     }
 
-    get_files(String::from(directory));
+    initialize_db(&conn);
+
+    get_files(String::from(directory), &conn);
+
+    test_db(&conn);
+
+    backup_db(&conn, "./auralist.sqlite3", db_backup_progress);
 }
 
-fn get_files(directory: std::string::String) -> Result<i32, walkdir::Error> {
+fn db_backup_progress(progress: backup::Progress) {
+    // todo: the progress...
+    println!("Backing up...");
+}
+
+fn initialize_db(conn: &Connection) {
+    conn.execute(
+        "CREATE TABLE file (
+                  id              INTEGER PRIMARY KEY,
+                  path            TEXT NOT NULL
+                  )",
+        params![],
+    );
+}
+
+fn get_files(directory: std::string::String, conn: &Connection) -> Result<i32, walkdir::Error> {
     for entry in WalkDir::new(directory) {
         let entry = match entry {
             Ok(file) => file,
@@ -74,31 +98,27 @@ fn get_files(directory: std::string::String) -> Result<i32, walkdir::Error> {
 
         let full_path = entry.path().to_str().unwrap();
 
-        index_file(String::from(full_path));
+        save_file_in_db(String::from(full_path), &conn);
     }
 
     Ok(0)
 }
 
-fn index_file(path: std::string::String) -> SQLiteResult<()> {
-    let conn = Connection::open_in_memory()?;
-
-    conn.execute(
-        "CREATE TABLE file (
-                  id              INTEGER PRIMARY KEY,
-                  path            TEXT NOT NULL,
-                  )",
-        params![],
-    )?;
+fn save_file_in_db(path: std::string::String, conn: &Connection) -> SQLiteResult<()> {    
     let f = File {
         id: 0,
         path: path,
     };
+
     conn.execute(
         "INSERT INTO file (path) VALUES (?1)",
         params![f.path],
     )?;
 
+    Ok(())
+}
+
+fn test_db(conn: &Connection) -> SQLiteResult<()> {
     let mut stmt = conn.prepare("SELECT id, path FROM file")?;
     let file_iter = stmt.query_map(params![], |row| {
         Ok(File {
@@ -114,4 +134,14 @@ fn index_file(path: std::string::String) -> SQLiteResult<()> {
     }
 
     Ok(())
+}
+
+fn backup_db<P: AsRef<Path>>(
+    src: &Connection,
+    dst: P,
+    progress: fn(backup::Progress),
+) -> SQLiteResult<()> {
+    let mut dst = Connection::open(dst)?;
+    let backup = backup::Backup::new(src, &mut dst)?;
+    backup.run_to_completion(5, Duration::from_millis(250), Some(progress))
 }
