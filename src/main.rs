@@ -207,7 +207,7 @@ fn backup_db_to_file<P: AsRef<Path>>(
     let src = DB.lock().unwrap();
     let mut dst = Connection::open(dst)?;
     let backup = backup::Backup::new(&src, &mut dst)?;
-    backup.run_to_completion(1, Duration::from_millis(250), Some(progress))
+    backup.run_to_completion(5, Duration::from_millis(0), Some(progress))
 }
 
 fn restore_db_from_file<P: AsRef<Path>>(
@@ -218,7 +218,7 @@ fn restore_db_from_file<P: AsRef<Path>>(
     let src = Connection::open(src)?;
     let mut dst = DB.lock().unwrap();
     let backup = backup::Backup::new(&src, &mut dst)?;
-    backup.run_to_completion(1, Duration::from_millis(250), Some(progress))
+    backup.run_to_completion(5, Duration::from_millis(0), Some(progress))
 }
 
 fn compress_file(source: &str, destination: &str) {
