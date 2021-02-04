@@ -76,21 +76,36 @@ fn index() {
         return;
     }
 
-    initialize_db();
+    match initialize_db() {
+        Ok(_) => println!("Success."),
+        Err(err) => println!("{}", err),
+    }
 
-    get_files(String::from(directory));
+    match get_files(String::from(directory)) {
+        Ok(_) => println!("Success."),
+        Err(err) => println!("{}", err),
+    }
 
-    backup_db_to_file(db_file, db_backup_progress);
+    match backup_db_to_file(db_file, db_backup_progress) {
+        Ok(_) => println!("Success."),
+        Err(err) => println!("{}", err),
+    }
 
     compress_file(db_file, &db_backup_file);
 
     decompress_file(&db_backup_file, db_file);
 
     // Restore connection from db file
-    restore_db_from_file(db_file, db_backup_progress);
+    match restore_db_from_file(db_file, db_backup_progress) {
+        Ok(_) => println!("Success."),
+        Err(err) => println!("{}", err),
+    }
 
     // Try to query restored db
-    test_db();
+    match test_db() {
+        Ok(_) => println!("Success."),
+        Err(err) => println!("{}", err),
+    }
 }
 
 fn db_backup_progress(p: backup::Progress) {
