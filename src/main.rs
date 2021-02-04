@@ -1,6 +1,8 @@
 // Local Packages
 mod database;
 use crate::database::SQLite;
+mod file;
+use crate::file::File;
 
 // Remote Packages
 use std::{env};
@@ -12,16 +14,9 @@ use ini::Ini;
 use flate2::Compression;
 use flate2::bufread::GzEncoder;
 use flate2::bufread::GzDecoder;
-use std::fs::File;
+use std::fs::File as FsFile;
 use std::io::BufReader;
 use twox_hash::xxh3;
-
-#[derive(Debug)]
-struct IndexedFile {
-    id: i32,
-    path: String,
-    path_hash: String,
-}
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -30,18 +25,12 @@ fn main() {
     if (args.len()) > 1 {
         let command = &args[1];
 
-        if command == "init" {
-            init();
-            return;
-        }
-
-        if command == "index" {
-            index();
-            return;
+        match command.as_str() {
+            "init" => init(),
+            "index" => index(),
+            _ => println!("Please choose a command e.g 'init' or 'index'")
         }
     }
-
-    println!("Please choose a command e.g 'init' or 'index'");
 }
 
 fn init() {
@@ -144,7 +133,7 @@ fn get_files(directory: std::string::String) -> Result<(), walkdir::Error> {
 fn save_file_in_db(path: std::string::String, conn: &Connection) -> SQLiteResult<()> {
     let path_hash = xxh3::hash64(path.as_bytes()).to_string();
     
-    let f = IndexedFile {
+    let f = File {
         id: 0,
         path: path,
         path_hash: path_hash
@@ -166,7 +155,7 @@ fn test_db() -> SQLiteResult<()> {
     let conn = SQLite::connect();
     let mut stmt = conn.prepare("SELECT id, path, path_hash FROM file")?;
     let file_iter = stmt.query_map(params![], |row| {
-        Ok(IndexedFile {
+        Ok(File {
             id: row.get(0)?,
             path: row.get(1)?,
             path_hash: row.get(2)?
@@ -204,22 +193,22 @@ fn restore_db_from_file<P: AsRef<Path>>(
 
 fn compress_file(source: &str, destination: &str) {
     println!("Compressing file...");
-    let f = File::open(source);
+    let f = FsFile::open(source);
     let b = BufReader::new(f.unwrap());
     let mut gz = GzEncoder::new(b, Compression::default());
 
     // Write contents to disk.
-    let mut f = File::create(destination).expect("Unable to create file");
+    let mut f = FsFile::create(destination).expect("Unable to create file");
     std::io::copy(&mut gz, &mut f).expect("Unable to copy data");
 }
 
 fn decompress_file(source: &str, destination: &str) {
     println!("Decompressing file...");
-    let f = File::open(source);
+    let f = FsFile::open(source);
     let b = BufReader::new(f.unwrap());
     let mut gz = GzDecoder::new(b);
 
     // Write contents to disk.
-    let mut f = File::create(destination).expect("Unable to create file");
+    let mut f = FsFile::create(destination).expect("Unable to create file");
     std::io::copy(&mut gz, &mut f).expect("Unable to copy data");
 }
