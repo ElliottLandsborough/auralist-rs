@@ -11,6 +11,7 @@ rust-ini = "0.16"
 walkdir = "2"
 flate2 = "1.0"
 lazy_static = "1.4.0"
+twox-hash = "1.6.0"
 
 [dependencies.rusqlite]
 version = "0.24.2"

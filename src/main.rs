@@ -14,12 +14,13 @@ use flate2::bufread::GzEncoder;
 use flate2::bufread::GzDecoder;
 use std::fs::File;
 use std::io::BufReader;
-//use std::error::Error;
+use twox_hash::xxh3;
 
 #[derive(Debug)]
 struct IndexedFile {
     id: i32,
     path: String,
+    path_hash: String,
 }
 
 fn main() {
@@ -108,8 +109,12 @@ fn initialize_db() -> Result<(), rusqlite::Error> {
     
     let sql = "CREATE TABLE file (
         id      INTEGER PRIMARY KEY,
-        path    TEXT NOT NULL
-    );";
+        path    TEXT NOT NULL,
+        path_hash TEXT NOT NULL
+    );
+    
+    CREATE UNIQUE INDEX path_hash ON file (path_hash);
+    ";
 
     match conn.execute_batch(sql) {
         Ok(_) => println!("Success."),
@@ -140,28 +145,35 @@ fn get_files(directory: std::string::String) -> Result<(), walkdir::Error> {
     Ok(())
 }
 
-fn save_file_in_db(path: std::string::String, conn: &Connection) -> SQLiteResult<()> {    
+fn save_file_in_db(path: std::string::String, conn: &Connection) -> SQLiteResult<()> {
+    let path_hash = xxh3::hash64(path.as_bytes()).to_string();
+    
     let f = IndexedFile {
         id: 0,
         path: path,
+        path_hash: path_hash
     };
 
     conn.execute(
-        "INSERT INTO file (path) VALUES (?1)",
-        params![f.path],
+        "INSERT INTO file (path, path_hash) VALUES (?1, ?2)",
+        params![
+            f.path,
+            f.path_hash,
+        ],
     )?;
 
     Ok(())
 }
 
 fn test_db() -> SQLiteResult<()> {
-    println!("Query: SELECT id, path FROM file");
+    println!("Query: SELECT id, path, path_hash FROM file");
     let conn = DB.lock().unwrap();
-    let mut stmt = conn.prepare("SELECT id, path FROM file")?;
+    let mut stmt = conn.prepare("SELECT id, path, path_hash FROM file")?;
     let file_iter = stmt.query_map(params![], |row| {
         Ok(IndexedFile {
             id: row.get(0)?,
             path: row.get(1)?,
+            path_hash: row.get(2)?
         })
     })?;
 
