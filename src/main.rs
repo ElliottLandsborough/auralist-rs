@@ -225,7 +225,7 @@ fn compress_file(source: &str, destination: &str) {
     println!("Compressing file...");
     let f = File::open(source);
     let b = BufReader::new(f.unwrap());
-    let mut gz = GzEncoder::new(b, Compression::fast());
+    let mut gz = GzEncoder::new(b, Compression::default());
 
     // Write contents to disk.
     let mut f = File::create(destination).expect("Unable to create file");
