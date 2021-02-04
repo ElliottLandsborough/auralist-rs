@@ -1,6 +1,6 @@
 // Local Packages
-mod db;
-use crate::db::DB;
+mod database;
+use crate::database::SQLite;
 
 // Remote Packages
 use std::{env};
@@ -25,6 +25,7 @@ struct IndexedFile {
 
 fn main() {
     let args: Vec<String> = env::args().collect();
+    let _conn = SQLite::connect();
 
     if (args.len()) > 1 {
         let command = &args[1];
@@ -127,7 +128,7 @@ fn db_backup_progress(p: backup::Progress) {
 fn initialize_db() -> Result<(), rusqlite::Error> {
     println!("Initializing DB...");
 
-    let conn = DB.lock().unwrap();
+    let conn = SQLite::connect();
     
     let sql = "CREATE TABLE file (
         id      INTEGER PRIMARY KEY,
@@ -148,7 +149,7 @@ fn initialize_db() -> Result<(), rusqlite::Error> {
 
 fn get_files(directory: std::string::String) -> Result<(), walkdir::Error> {
     println!("Saving files to db...");
-    let conn = DB.lock().unwrap();
+    let conn = SQLite::connect();
 
     for entry in WalkDir::new(directory) {
         let entry = match entry {
@@ -189,7 +190,7 @@ fn save_file_in_db(path: std::string::String, conn: &Connection) -> SQLiteResult
 
 fn test_db() -> SQLiteResult<()> {
     println!("Query: SELECT id, path, path_hash FROM file");
-    let conn = DB.lock().unwrap();
+    let conn = SQLite::connect();
     let mut stmt = conn.prepare("SELECT id, path, path_hash FROM file")?;
     let file_iter = stmt.query_map(params![], |row| {
         Ok(IndexedFile {
@@ -211,7 +212,7 @@ fn backup_db_to_file<P: AsRef<Path>>(
     progress: fn(backup::Progress),
 ) -> SQLiteResult<()> {
     println!("Backing up db to file...");
-    let src = DB.lock().unwrap();
+    let src = SQLite::connect();
     let mut dst = Connection::open(dst)?;
     let backup = backup::Backup::new(&src, &mut dst)?;
     backup.run_to_completion(5, Duration::from_millis(0), Some(progress))
@@ -223,7 +224,7 @@ fn restore_db_from_file<P: AsRef<Path>>(
 ) -> SQLiteResult<()> {
     println!("Restoring db from file...");
     let src = Connection::open(src)?;
-    let mut dst = DB.lock().unwrap();
+    let mut dst = SQLite::connect();
     let backup = backup::Backup::new(&src, &mut dst)?;
     backup.run_to_completion(5, Duration::from_millis(0), Some(progress))
 }
