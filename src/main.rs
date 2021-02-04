@@ -25,7 +25,7 @@ struct IndexedFile {
 
 fn main() {
     let args: Vec<String> = env::args().collect();
-    let _conn = SQLite::connect();
+    let _conn = SQLite::initialize();
 
     if (args.len()) > 1 {
         let command = &args[1];
@@ -84,11 +84,6 @@ fn index() {
         return;
     }
 
-    match initialize_db() {
-        Ok(_) => println!("Success."),
-        Err(err) => println!("{}", err),
-    }
-
     match get_files(String::from(directory)) {
         Ok(_) => println!("Success."),
         Err(err) => println!("{}", err),
@@ -123,28 +118,6 @@ fn db_backup_progress(p: backup::Progress) {
     let remaining = ((pagecount - remaining) / pagecount) * 100.0;
 
     println!("Progress: {}%", remaining.round());
-}
-
-fn initialize_db() -> Result<(), rusqlite::Error> {
-    println!("Initializing DB...");
-
-    let conn = SQLite::connect();
-    
-    let sql = "CREATE TABLE file (
-        id      INTEGER PRIMARY KEY,
-        path    TEXT NOT NULL,
-        path_hash TEXT NOT NULL
-    );
-    
-    CREATE UNIQUE INDEX path_hash ON file (path_hash);
-    ";
-
-    match conn.execute_batch(sql) {
-        Ok(_) => println!("Success."),
-        Err(err) => println!("update failed: {}", err),
-    }
-
-    Ok(())
 }
 
 fn get_files(directory: std::string::String) -> Result<(), walkdir::Error> {
