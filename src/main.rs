@@ -62,10 +62,17 @@ fn init() {
 }
 
 fn index() {
+    let conf_file = "conf.ini";
     let db_file = "./auralist.sqlite3";
     let db_backup_file = db_file.to_owned() + ".gz";
 
-    let conf = Ini::load_from_file("conf.ini").unwrap();
+    if !Path::new(conf_file).exists() {
+        println!("Config file `{:?}` missing. Please run `init` first", conf_file);
+
+        return;
+    }
+
+    let conf = Ini::load_from_file(conf_file).unwrap();
 
     let section = conf.section(Some("Files")).unwrap();
     let directory = section.get("directory_to_index").unwrap();
