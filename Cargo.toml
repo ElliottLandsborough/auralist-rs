@@ -1,7 +1,14 @@
 [package]
 name = "auralist-rs"
 version = "0.1.0"
-authors = ["Elliott Landsborough <elliott@muzmatch.com>"]
+authors = ["Elliott Landsborough <elliott.landsborough@gmail.com>"]
+license = "MIT OR Apache-2.0"
+description = "A tool to search media files"
+readme = "README.md"
+homepage = "https://github.com/ElliottLandsborough/auralist-rs"
+repository = "https://github.com/ElliottLandsborough/auralist-rs"
+keywords = ["mp3", "indexer", "search"]
+categories = ["command-line-utilities"]
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
