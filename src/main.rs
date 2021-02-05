@@ -1,16 +1,8 @@
-// Local Packages
-mod database;
-use crate::database::SQLite;
-mod file;
-use crate::file::File;
-
-// Remote Packages
 use std::{env};
 use rusqlite::{backup, params, Connection, Result as SQLiteResult};
 use walkdir::WalkDir;
 use std::path::Path;
 use std::time::Duration;
-use ini::Ini;
 use flate2::Compression;
 use flate2::bufread::GzEncoder;
 use flate2::bufread::GzDecoder;
@@ -18,43 +10,31 @@ use std::fs::File as FsFile;
 use std::io::BufReader;
 use twox_hash::xxh3;
 
+mod database;
+use crate::database::SQLite;
+mod files;
+use crate::files::File;
+mod config;
+use crate::config::{ConfigFile, Settings};
+
 fn main() {
     let args: Vec<String> = env::args().collect();
-    let _conn = SQLite::initialize();
+    let config = ConfigFile::new();
 
     if (args.len()) > 1 {
         let command = &args[1];
 
         match command.as_str() {
-            "init" => init(),
+            "init" => config.create(),
             "index" => index(),
             _ => println!("Please choose a command e.g 'init' or 'index'")
         }
     }
 }
 
-fn init() {
-    let config_path = "conf.ini";
-
-    if Path::new(config_path).exists() {
-        println!("Could not create `conf.ini` as it already exists.");
-
-        return;
-    }
-
-    let mut conf = Ini::new();
-    conf.with_section(None::<String>)
-        .set("encoding", "utf-8");
-    conf.with_section(Some("Files"))
-        .set("directory_to_index", "~/Music")
-        .set("extensions_to_index", "*");
-    conf.write_to_file(config_path).unwrap();
-}
-
 fn index() {
-    let conf_file = "conf.ini";
-    let db_file = "./auralist.sqlite3";
-    let db_backup_file = db_file.to_owned() + ".gz";
+    let _conn = SQLite::initialize();
+    let conf_file = "./conf.ini";
 
     if !Path::new(conf_file).exists() {
         println!("Config file `{:?}` missing. Please run `init` first", conf_file);
@@ -62,30 +42,30 @@ fn index() {
         return;
     }
 
-    let conf = Ini::load_from_file(conf_file).unwrap();
+    let directory_to_index = Settings::get("Files", "directory_to_index");
 
-    let section = conf.section(Some("Files")).unwrap();
-    let directory = section.get("directory_to_index").unwrap();
-
-    if !Path::new(directory).exists() {
-        println!("Directory set in `conf.ini` missing: `{:?}`", directory);
+    if !Path::new(&directory_to_index).exists() {
+        println!("Directory set in `conf.ini` missing: `{:?}`", &directory_to_index);
 
         return;
     }
 
-    match get_files(String::from(directory)) {
+    match get_files(String::from(&directory_to_index)) {
         Ok(_) => println!("Success."),
         Err(err) => println!("{}", err),
     }
 
-    match backup_db_to_file(db_file, db_backup_progress) {
+    let db_file = Settings::get("System", "db_file");
+    let db_backup_file = db_file.to_owned() + ".gz";
+
+    match backup_db_to_file(&db_file, db_backup_progress) {
         Ok(_) => println!("Success."),
         Err(err) => println!("{}", err),
     }
 
-    compress_file(db_file, &db_backup_file);
+    compress_file(&db_file, &db_backup_file);
 
-    decompress_file(&db_backup_file, db_file);
+    decompress_file(&db_backup_file, &db_file);
 
     // Restore connection from db file
     match restore_db_from_file(db_file, db_backup_progress) {

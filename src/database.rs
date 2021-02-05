@@ -6,8 +6,7 @@ impl SQLite {
     pub fn initialize() -> RuConnection {
         let persist = SQLite::connect();
         SQLite::migrate();
-
-        return persist;
+        persist
     }
 
     pub fn connect() -> RuConnection {
