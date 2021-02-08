@@ -40,23 +40,30 @@ impl SQLite {
 
     pub fn backup_db_to_file<P: AsRef<Path>>(
         dst: P,
-        progress: fn(backup::Progress),
     ) -> SQLiteResult<()> {
         println!("Backing up db to file...");
         let src = SQLite::connect();
         let mut dst = RuConnection::open(dst)?;
         let backup = backup::Backup::new(&src, &mut dst)?;
-        backup.run_to_completion(5, Duration::from_millis(0), Some(progress))
+        backup.run_to_completion(5, Duration::from_millis(0), Some(SQLite::db_backup_progress))
     }
 
     pub fn restore_db_from_file<P: AsRef<Path>>(
         src: P,
-        progress: fn(backup::Progress),
     ) -> SQLiteResult<()> {
         println!("Restoring db from file...");
         let src = RuConnection::open(src)?;
         let mut dst = SQLite::connect();
         let backup = backup::Backup::new(&src, &mut dst)?;
-        backup.run_to_completion(5, Duration::from_millis(0), Some(progress))
+        backup.run_to_completion(5, Duration::from_millis(0), Some(SQLite::db_backup_progress))
+    }
+
+    fn db_backup_progress(p: backup::Progress) {
+        let pagecount = f64::from(p.pagecount);
+        let remaining = f64::from(p.remaining);
+    
+        let remaining = ((pagecount - remaining) / pagecount) * 100.0;
+    
+        println!("Progress: {}%", remaining.round());
     }
 }

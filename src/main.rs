@@ -1,5 +1,5 @@
 use std::{env};
-use rusqlite::{backup, params, Connection, Result as SQLiteResult};
+use rusqlite::{params, Connection, Result as SQLiteResult};
 use walkdir::WalkDir;
 use std::path::Path;
 use flate2::Compression;
@@ -57,7 +57,7 @@ fn index() {
     let db_file = Settings::get("System", "db_file");
     let db_backup_file = db_file.to_owned() + ".gz";
 
-    match SQLite::backup_db_to_file(&db_file, db_backup_progress) {
+    match SQLite::backup_db_to_file(&db_file) {
         Ok(_) => println!("Success."),
         Err(err) => println!("{}", err),
     }
@@ -67,7 +67,7 @@ fn index() {
     decompress_file(&db_backup_file, &db_file);
 
     // Restore connection from db file
-    match SQLite::restore_db_from_file(db_file, db_backup_progress) {
+    match SQLite::restore_db_from_file(db_file) {
         Ok(_) => println!("Success."),
         Err(err) => println!("{}", err),
     }
@@ -77,15 +77,6 @@ fn index() {
         Ok(_) => println!("Success."),
         Err(err) => println!("{}", err),
     }
-}
-
-fn db_backup_progress(p: backup::Progress) {
-    let pagecount = f64::from(p.pagecount);
-    let remaining = f64::from(p.remaining);
-
-    let remaining = ((pagecount - remaining) / pagecount) * 100.0;
-
-    println!("Progress: {}%", remaining.round());
 }
 
 fn get_files(directory: std::string::String) -> Result<(), walkdir::Error> {
