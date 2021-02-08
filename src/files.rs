@@ -5,3 +5,6 @@ pub struct File {
     pub path_hash: String,
 }
 
+impl File {
+    
+}

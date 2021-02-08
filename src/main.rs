@@ -2,7 +2,6 @@ use std::{env};
 use rusqlite::{backup, params, Connection, Result as SQLiteResult};
 use walkdir::WalkDir;
 use std::path::Path;
-use std::time::Duration;
 use flate2::Compression;
 use flate2::bufread::GzEncoder;
 use flate2::bufread::GzDecoder;
@@ -58,7 +57,7 @@ fn index() {
     let db_file = Settings::get("System", "db_file");
     let db_backup_file = db_file.to_owned() + ".gz";
 
-    match backup_db_to_file(&db_file, db_backup_progress) {
+    match SQLite::backup_db_to_file(&db_file, db_backup_progress) {
         Ok(_) => println!("Success."),
         Err(err) => println!("{}", err),
     }
@@ -68,7 +67,7 @@ fn index() {
     decompress_file(&db_backup_file, &db_file);
 
     // Restore connection from db file
-    match restore_db_from_file(db_file, db_backup_progress) {
+    match SQLite::restore_db_from_file(db_file, db_backup_progress) {
         Ok(_) => println!("Success."),
         Err(err) => println!("{}", err),
     }
@@ -147,28 +146,6 @@ fn test_db() -> SQLiteResult<()> {
     }
 
     Ok(())
-}
-
-fn backup_db_to_file<P: AsRef<Path>>(
-    dst: P,
-    progress: fn(backup::Progress),
-) -> SQLiteResult<()> {
-    println!("Backing up db to file...");
-    let src = SQLite::connect();
-    let mut dst = Connection::open(dst)?;
-    let backup = backup::Backup::new(&src, &mut dst)?;
-    backup.run_to_completion(5, Duration::from_millis(0), Some(progress))
-}
-
-fn restore_db_from_file<P: AsRef<Path>>(
-    src: P,
-    progress: fn(backup::Progress),
-) -> SQLiteResult<()> {
-    println!("Restoring db from file...");
-    let src = Connection::open(src)?;
-    let mut dst = SQLite::connect();
-    let backup = backup::Backup::new(&src, &mut dst)?;
-    backup.run_to_completion(5, Duration::from_millis(0), Some(progress))
 }
 
 fn compress_file(source: &str, destination: &str) {

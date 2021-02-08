@@ -1,4 +1,6 @@
-use rusqlite::Connection as RuConnection;
+use rusqlite::{backup, Connection as RuConnection, Result as SQLiteResult};
+use std::path::Path;
+use std::time::Duration;
 
 pub struct SQLite;
 
@@ -34,5 +36,27 @@ impl SQLite {
             Ok(_) => println!("Success."),
             Err(err) => println!("update failed: {}", err),
         }
+    }
+
+    pub fn backup_db_to_file<P: AsRef<Path>>(
+        dst: P,
+        progress: fn(backup::Progress),
+    ) -> SQLiteResult<()> {
+        println!("Backing up db to file...");
+        let src = SQLite::connect();
+        let mut dst = RuConnection::open(dst)?;
+        let backup = backup::Backup::new(&src, &mut dst)?;
+        backup.run_to_completion(5, Duration::from_millis(0), Some(progress))
+    }
+
+    pub fn restore_db_from_file<P: AsRef<Path>>(
+        src: P,
+        progress: fn(backup::Progress),
+    ) -> SQLiteResult<()> {
+        println!("Restoring db from file...");
+        let src = RuConnection::open(src)?;
+        let mut dst = SQLite::connect();
+        let backup = backup::Backup::new(&src, &mut dst)?;
+        backup.run_to_completion(5, Duration::from_millis(0), Some(progress))
     }
 }
