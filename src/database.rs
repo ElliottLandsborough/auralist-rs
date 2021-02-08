@@ -1,6 +1,8 @@
 use rusqlite::{backup, Connection as RuConnection, Result as SQLiteResult};
-use std::path::Path;
 use std::time::Duration;
+
+use crate::config::Settings;
+use crate::files::File;
 
 pub struct SQLite;
 
@@ -38,24 +40,39 @@ impl SQLite {
         }
     }
 
-    pub fn backup_db_to_file<P: AsRef<Path>>(
-        dst: P,
-    ) -> SQLiteResult<()> {
+    pub fn backup_to_gz() -> SQLiteResult<()> {
         println!("Backing up db to file...");
+        let db_file = Settings::get("System", "db_file");
+        let file_to_compress = db_file.clone();
         let src = SQLite::connect();
-        let mut dst = RuConnection::open(dst)?;
+        let mut dst = RuConnection::open(db_file)?;
         let backup = backup::Backup::new(&src, &mut dst)?;
-        backup.run_to_completion(5, Duration::from_millis(0), Some(SQLite::db_backup_progress))
+        backup.run_to_completion(5, Duration::from_millis(0), Some(SQLite::db_backup_progress))?;
+
+        let f = File::new_database_backup(&file_to_compress);
+        f.compress_to_gz();
+
+        println!("Success.");
+
+        Ok(())
     }
 
-    pub fn restore_db_from_file<P: AsRef<Path>>(
-        src: P,
-    ) -> SQLiteResult<()> {
+    pub fn restore_from_gz() -> SQLiteResult<()> {
         println!("Restoring db from file...");
-        let src = RuConnection::open(src)?;
+        let db_file = Settings::get("System", "db_file");
+
+        let file_to_decompress = db_file.clone();
+        let f = File::new_database_backup(&file_to_decompress);
+        f.decompress_from_gz();
+
+        let src = RuConnection::open(db_file)?;
         let mut dst = SQLite::connect();
         let backup = backup::Backup::new(&src, &mut dst)?;
-        backup.run_to_completion(5, Duration::from_millis(0), Some(SQLite::db_backup_progress))
+        backup.run_to_completion(5, Duration::from_millis(0), Some(SQLite::db_backup_progress))?;
+
+        println!("Success.");
+
+        Ok(())
     }
 
     fn db_backup_progress(p: backup::Progress) {

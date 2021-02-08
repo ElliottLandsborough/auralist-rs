@@ -1,12 +1,7 @@
 use std::{env};
-use rusqlite::{params, Connection, Result as SQLiteResult};
+use rusqlite::{params, Result as SQLiteResult};
 use walkdir::WalkDir;
 use std::path::Path;
-use flate2::Compression;
-use flate2::bufread::GzEncoder;
-use flate2::bufread::GzDecoder;
-use std::fs::File as FsFile;
-use std::io::BufReader;
 use twox_hash::xxh3;
 
 mod database;
@@ -54,20 +49,13 @@ fn index() {
         Err(err) => println!("{}", err),
     }
 
-    let db_file = Settings::get("System", "db_file");
-    let db_backup_file = db_file.to_owned() + ".gz";
-
-    match SQLite::backup_db_to_file(&db_file) {
-        Ok(_) => println!("Success."),
+    match SQLite::backup_to_gz() {
+        Ok(file) => file,
         Err(err) => println!("{}", err),
-    }
-
-    compress_file(&db_file, &db_backup_file);
-
-    decompress_file(&db_backup_file, &db_file);
+    };
 
     // Restore connection from db file
-    match SQLite::restore_db_from_file(db_file) {
+    match SQLite::restore_from_gz() {
         Ok(_) => println!("Success."),
         Err(err) => println!("{}", err),
     }
@@ -81,7 +69,6 @@ fn index() {
 
 fn get_files(directory: std::string::String) -> Result<(), walkdir::Error> {
     println!("Saving files to db...");
-    let conn = SQLite::connect();
 
     for entry in WalkDir::new(directory) {
         let entry = match entry {
@@ -89,33 +76,16 @@ fn get_files(directory: std::string::String) -> Result<(), walkdir::Error> {
             Err(error) => panic!("Problem with file: {:?}", error),
         };
 
-        let full_path = entry.path().to_str().unwrap();
+        let path = entry.path().to_str().unwrap().to_string();
+        let path_hash = xxh3::hash64(path.as_bytes()).to_string();
 
-        match save_file_in_db(String::from(full_path), &conn) {
-            Ok(_) => println!("."),
-            Err(err) => println!("Update failed: {}", err),
-        }
+        let f = File::new(
+            &path,
+            &path_hash
+        );
+
+        f.save_to_database();
     }
-
-    Ok(())
-}
-
-fn save_file_in_db(path: std::string::String, conn: &Connection) -> SQLiteResult<()> {
-    let path_hash = xxh3::hash64(path.as_bytes()).to_string();
-    
-    let f = File {
-        id: 0,
-        path: path,
-        path_hash: path_hash
-    };
-
-    conn.execute(
-        "INSERT INTO file (path, path_hash) VALUES (?1, ?2)",
-        params![
-            f.path,
-            f.path_hash,
-        ],
-    )?;
 
     Ok(())
 }
@@ -137,26 +107,4 @@ fn test_db() -> SQLiteResult<()> {
     }
 
     Ok(())
-}
-
-fn compress_file(source: &str, destination: &str) {
-    println!("Compressing file...");
-    let f = FsFile::open(source);
-    let b = BufReader::new(f.unwrap());
-    let mut gz = GzEncoder::new(b, Compression::default());
-
-    // Write contents to disk.
-    let mut f = FsFile::create(destination).expect("Unable to create file");
-    std::io::copy(&mut gz, &mut f).expect("Unable to copy data");
-}
-
-fn decompress_file(source: &str, destination: &str) {
-    println!("Decompressing file...");
-    let f = FsFile::open(source);
-    let b = BufReader::new(f.unwrap());
-    let mut gz = GzDecoder::new(b);
-
-    // Write contents to disk.
-    let mut f = FsFile::create(destination).expect("Unable to create file");
-    std::io::copy(&mut gz, &mut f).expect("Unable to copy data");
 }
