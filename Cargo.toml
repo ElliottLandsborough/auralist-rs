@@ -18,6 +18,10 @@ rust-ini = "0.16"
 walkdir = "2"
 flate2 = "1.0"
 twox-hash = "1.6.0"
+id3 = "0.6.1"
+taglib = "*"
+
+#tree_magic = "0.2.3"
 
 [dependencies.rusqlite]
 version = "0.24.2"

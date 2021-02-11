@@ -2,7 +2,7 @@ use rusqlite::{backup, Connection as RuConnection, Result as SQLiteResult};
 use std::time::Duration;
 
 use crate::config::Settings;
-use crate::files::File;
+use crate::dbbackup::BackupFile;
 
 pub struct SQLite;
 
@@ -49,7 +49,7 @@ impl SQLite {
         let backup = backup::Backup::new(&src, &mut dst)?;
         backup.run_to_completion(5, Duration::from_millis(0), Some(SQLite::db_backup_progress))?;
 
-        let f = File::new_database_backup(&file_to_compress);
+        let f = BackupFile::new(&file_to_compress);
         f.compress_to_gz();
 
         println!("Success.");
@@ -62,7 +62,7 @@ impl SQLite {
         let db_file = Settings::get("System", "db_file");
 
         let file_to_decompress = db_file.clone();
-        let f = File::new_database_backup(&file_to_decompress);
+        let f = BackupFile::new(&file_to_decompress);
         f.decompress_from_gz();
 
         let src = RuConnection::open(db_file)?;

@@ -2,14 +2,14 @@ use std::{env};
 use rusqlite::{params, Result as SQLiteResult};
 use walkdir::WalkDir;
 use std::path::Path;
-use twox_hash::xxh3;
 
 mod database;
+mod dbbackup;
 use crate::database::SQLite;
-mod files;
-use crate::files::File;
 mod config;
 use crate::config::{ConfigFile, Settings};
+mod music;
+use crate::music::File;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -76,15 +76,12 @@ fn get_files(directory: std::string::String) -> Result<(), walkdir::Error> {
             Err(error) => panic!("Problem with file: {:?}", error),
         };
 
-        let path = entry.path().to_str().unwrap().to_string();
-        let path_hash = xxh3::hash64(path.as_bytes()).to_string();
+        let path = entry.path();
 
-        let f = File::new(
-            &path,
-            &path_hash
-        );
-
-        f.save_to_database();
+        if !path.is_dir() {
+            let f = File::populate_from_path(&path);
+            f.save_to_database();
+        }
     }
 
     Ok(())
@@ -98,12 +95,19 @@ fn test_db() -> SQLiteResult<()> {
         Ok(File {
             id: row.get(0)?,
             path: row.get(1)?,
-            path_hash: row.get(2)?
+            path_hash: row.get(2)?,
+            file_name: "".to_string(),
+            album: "".to_string(),
+            artist: "".to_string(),
+            title: "".to_string(),
         })
     })?;
 
     for file in file_iter {
-        println!("Found file {:?}", file.unwrap());
+        match file {
+            Ok(file) => println!("Found file id {:?}", file.id),
+            Err(error) => println!("ERROR: {:?}", error),
+        }
     }
 
     Ok(())
