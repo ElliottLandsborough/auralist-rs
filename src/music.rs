@@ -3,9 +3,10 @@ use crate::database::SQLite;
 use twox_hash::xxh3;
 use std::path::Path;
 extern crate taglib;
+use serde::{Serialize, Deserialize};
 //extern crate tree_magic;
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct File {
     pub id: i32,
     pub path: String,
@@ -62,13 +63,12 @@ impl File {
                         self.title = t.title().unwrap_or_default();
                         self.artist = t.artist().unwrap_or_default();
                         self.album = t.album().unwrap_or_default();
-                        //self.track = t.album().unwrap_or_default();
                     },
                     Err(_) => ()
                 }
                 match file.audioproperties() {
-                    Ok(p) => {
-                        //self.length = p.length();
+                    Ok(_p) => {
+                        //self.length = _p.length();
                     }
                     Err(e) => {
                         println!("No available audio properties for {} (error: {:?})", path.display(), e);

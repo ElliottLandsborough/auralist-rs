@@ -2,6 +2,8 @@ use std::{env};
 use rusqlite::{params, Result as SQLiteResult};
 use walkdir::WalkDir;
 use std::path::Path;
+use warp::Filter;
+use serde::{Serialize, Deserialize};
 
 mod database;
 mod dbbackup;
@@ -21,6 +23,7 @@ fn main() {
         match command.as_str() {
             "init" => config.create(),
             "index" => index(),
+            "serve" => serve(),
             _ => println!("Please choose a command e.g 'init' or 'index'")
         }
     }
@@ -111,4 +114,42 @@ fn test_db() -> SQLiteResult<()> {
     }
 
     Ok(())
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct EmptyResponse {
+    pub status: i32,
+    pub message: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct FileResponse {
+    pub status: i32,
+    pub message: String,
+    pub data: Vec<File>,
+}
+
+#[tokio::main]
+async fn serve() {
+    // domain.tld
+    let root = warp::path::end()
+        .map(|| {
+            let response = EmptyResponse {
+                status: 200,
+                message: "OK".to_string(),
+            };
+
+            warp::reply::json(&response)
+        });
+    
+    // domain.tld/search/[anything]
+    let search = warp::path!("search" / String)
+        .map(|name| format!("Searching for, {}!", name));
+
+    let routes = root
+        .or(search);
+
+    warp::serve(routes)
+        .run(([127, 0, 0, 1], 3030))
+        .await;
 }
