@@ -39,7 +39,7 @@ fn index() {
         return;
     }
 
-    let directory_to_index = Settings::get("Files", "directory_to_index");
+    let directory_to_index = Settings::get("Indexer", "directory_to_index");
 
     if !Path::new(&directory_to_index).exists() {
         println!("Directory set in `conf.ini` missing: `{:?}`", &directory_to_index);
@@ -131,6 +131,12 @@ struct FileResponse {
 
 #[tokio::main]
 async fn serve() {
+    // Restore connection from db file
+    match SQLite::restore_from_gz() {
+        Ok(_) => println!("Success."),
+        Err(err) => println!("{}", err),
+    }
+
     // domain.tld
     let root = warp::path::end()
         .map(|| {
