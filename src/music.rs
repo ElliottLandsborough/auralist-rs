@@ -86,7 +86,7 @@ impl File {
                 }
                 match file.audioproperties() {
                     Ok(_p) => {
-                        //self.length = _p.length();
+                        //self.length = _p.length(); // in seconds
                     }
                     Err(e) => {
                         println!("No available audio properties for {} (error: {:?})", path.display(), e);

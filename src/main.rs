@@ -213,6 +213,6 @@ async fn serve() {
         .or(search);
 
     warp::serve(routes)
-        .run(([127, 0, 0, 1], 3031))
+        .run(([127, 0, 0, 1], 1337))
         .await;
 }
