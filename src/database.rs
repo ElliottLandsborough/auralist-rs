@@ -26,7 +26,7 @@ impl SQLite {
         let conn = SQLite::connect();
         
         let sql = "
-        CREATE TABLE file (
+        CREATE TABLE files (
             id        INTEGER PRIMARY KEY,
             path_hash TEXT NOT NULL,
             path      TEXT NOT NULL,
@@ -37,13 +37,22 @@ impl SQLite {
         );
 
         CREATE UNIQUE INDEX path_hash ON file (path_hash);
-
-        CREATE VIRTUAL TABLE file_search
-        USING FTS5(path_hash, file_name, title, artist, album);
         ";
     
         match conn.execute_batch(sql) {
-            Ok(_) => println!("Success."),
+            Ok(_) => println!("Successfully created files table."),
+            Err(err) => println!("update failed: {}", err),
+        }
+
+        let conn = SQLite::connect();
+        
+        let sql = "
+        CREATE VIRTUAL TABLE search
+        USING FTS5(path, file_name, title, artist, album);
+        ";
+    
+        match conn.execute_batch(sql) {
+            Ok(_) => println!("Successfully created search table."),
             Err(err) => println!("update failed: {}", err),
         }
     }

@@ -39,7 +39,7 @@ impl File {
         let conn = SQLite::connect();
 
         match conn.execute(
-            "INSERT INTO file (path_hash, path, file_name, title, artist, album) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            "INSERT INTO files (path_hash, path, file_name, title, artist, album) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
             params![
                 self.path_hash,
                 self.path,
@@ -54,9 +54,9 @@ impl File {
         }
 
         match conn.execute(
-            "INSERT INTO file_search (path_hash, file_name, title, artist, album) VALUES (?1, ?2, ?3, ?4, ?5)",
+            "INSERT INTO search (path, file_name, title, artist, album) VALUES (?1, ?2, ?3, ?4, ?5)",
             params![
-                self.path_hash,
+                self.path,
                 self.file_name,
                 self.title,
                 self.artist,

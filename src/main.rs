@@ -31,6 +31,7 @@ fn main() {
 
 fn index() {
     let _conn = SQLite::initialize();
+
     let conf_file = "./conf.ini";
 
     if !Path::new(conf_file).exists() {
@@ -91,9 +92,9 @@ fn get_files(directory: std::string::String) -> Result<(), walkdir::Error> {
 }
 
 fn test_db() -> SQLiteResult<()> {
-    println!("Query: SELECT id, path, path_hash FROM file");
+    println!("Query: SELECT id, path, path_hash FROM files");
     let conn = SQLite::connect();
-    let mut stmt = conn.prepare("SELECT id, path, path_hash FROM file")?;
+    let mut stmt = conn.prepare("SELECT id, path, path_hash FROM files")?;
     let file_iter = stmt.query_map(params![], |row| {
         Ok(File {
             id: row.get(0)?,
@@ -116,6 +117,45 @@ fn test_db() -> SQLiteResult<()> {
     Ok(())
 }
 
+fn search_result_to_file(path: String, file_name: String, title: String, artist: String, album: String) -> SQLiteResult<File> {
+    Ok(File {
+        id: 0, // fix this
+        path_hash: "123".to_string(), // fix this
+        path: path,
+        file_name: file_name,
+        album: album,
+        artist: artist,
+        title: title,
+    })
+}
+
+fn search_db(input: String) -> SQLiteResult<Vec<File>> {
+    let query = "SELECT * FROM `search` WHERE `search` MATCH :input;";
+    println!("{}", query);
+    let conn = SQLite::connect();
+
+    let mut stmt = conn.prepare(query)?;
+    //let mut stmt = conn.prepare("SELECT * FROM `files` where `artist` LIKE :query;")?;
+
+    let rows = stmt.query_and_then_named(&[(":input", &input)], |row| {
+        search_result_to_file(
+            row.get(0)?, // path
+            row.get(1)?, // filename
+            row.get(2)?, // title
+            row.get(3)?, // artist
+            row.get(4)?, // album
+        )
+    })?;
+
+    let mut files: Vec<File> = Vec::new();
+
+    for file in rows {
+        files.push(file?);
+    }
+
+    Ok(files)
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 struct EmptyResponse {
     pub status: i32,
@@ -126,11 +166,14 @@ struct EmptyResponse {
 struct FileResponse {
     pub status: i32,
     pub message: String,
+    pub count: usize,
     pub data: Vec<File>,
 }
 
 #[tokio::main]
 async fn serve() {
+    let _conn = SQLite::initialize();
+
     // Restore connection from db file
     match SQLite::restore_from_gz() {
         Ok(_) => println!("Success."),
@@ -150,12 +193,26 @@ async fn serve() {
     
     // domain.tld/search/[anything]
     let search = warp::path!("search" / String)
-        .map(|name| format!("Searching for, {}!", name));
+        .map(|query| {
+            let files = match search_db(query) {
+                Ok(files) => files,
+                Err(error) => panic!("Problem with search: {:?}", error),
+            };
+
+            let response = FileResponse {
+                status: 200,
+                message: "OK".to_string(),
+                count: files.len(),
+                data: files
+            };
+
+            warp::reply::json(&response)
+        });
 
     let routes = root
         .or(search);
 
     warp::serve(routes)
-        .run(([127, 0, 0, 1], 3030))
+        .run(([127, 0, 0, 1], 3031))
         .await;
 }
