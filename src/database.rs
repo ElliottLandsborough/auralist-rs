@@ -25,13 +25,21 @@ impl SQLite {
     
         let conn = SQLite::connect();
         
-        let sql = "CREATE TABLE file (
-            id      INTEGER PRIMARY KEY,
-            path    TEXT NOT NULL,
-            path_hash TEXT NOT NULL
+        let sql = "
+        CREATE TABLE file (
+            id        INTEGER PRIMARY KEY,
+            path_hash TEXT NOT NULL,
+            path      TEXT NOT NULL,
+            file_name TEXT NOT NULL,
+            title     TEXT NOT NULL,
+            artist    TEXT NOT NULL,
+            album     TEXT NOT NULL
         );
-        
+
         CREATE UNIQUE INDEX path_hash ON file (path_hash);
+
+        CREATE VIRTUAL TABLE file_search
+        USING FTS5(path_hash, file_name, title, artist, album);
         ";
     
         match conn.execute_batch(sql) {
