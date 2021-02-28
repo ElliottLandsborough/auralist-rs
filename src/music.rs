@@ -20,11 +20,12 @@ pub struct File {
 impl File {
     pub fn populate_from_path(path: &Path) -> File {
         let path_string = path.to_str().unwrap().to_string();
+        let file_name = String::from(path.file_name().unwrap().to_string_lossy());
         let mut f = File {
             id: 0,
             path: path_string.clone(),
             path_hash: xxh3::hash64(path_string.as_bytes()).to_string(),
-            file_name: "".to_string(),
+            file_name: file_name,
             title: "".to_string(),
             artist: "".to_string(),
             album: "".to_string(),

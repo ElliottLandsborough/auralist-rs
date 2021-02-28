@@ -94,16 +94,16 @@ fn get_files(directory: std::string::String) -> Result<(), walkdir::Error> {
 fn test_db() -> SQLiteResult<()> {
     println!("Query: SELECT id, path, path_hash FROM files");
     let conn = SQLite::connect();
-    let mut stmt = conn.prepare("SELECT id, path, path_hash FROM files")?;
+    let mut stmt = conn.prepare("SELECT id, path, path_hash, file_name, album, artist, title FROM files")?;
     let file_iter = stmt.query_map(params![], |row| {
         Ok(File {
             id: row.get(0)?,
             path: row.get(1)?,
             path_hash: row.get(2)?,
-            file_name: "".to_string(),
-            album: "".to_string(),
-            artist: "".to_string(),
-            title: "".to_string(),
+            file_name: row.get(3)?,
+            album: row.get(4)?,
+            artist: row.get(5)?,
+            title: row.get(6)?,
         })
     })?;
 
