@@ -31,6 +31,7 @@ impl SQLite {
             path_hash TEXT NOT NULL,
             path      TEXT NOT NULL,
             file_name TEXT NOT NULL,
+            file_ext TEXT NOT NULL,
             title     TEXT NOT NULL,
             artist    TEXT NOT NULL,
             album     TEXT NOT NULL
@@ -48,7 +49,7 @@ impl SQLite {
         
         let sql = "
         CREATE VIRTUAL TABLE search
-        USING FTS5(path, file_name, title, artist, album);
+        USING FTS5(path, file_name, file_ext, title, artist, album);
         ";
     
         match conn.execute_batch(sql) {

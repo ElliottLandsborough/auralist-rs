@@ -12,6 +12,7 @@ pub struct File {
     pub path: String,
     pub path_hash: String,
     pub file_name: String,
+    pub file_ext: String,
     pub title: String,
     pub artist: String,
     pub album: String,
@@ -21,11 +22,18 @@ impl File {
     pub fn populate_from_path(path: &Path) -> File {
         let path_string = path.to_str().unwrap().to_string();
         let file_name = String::from(path.file_name().unwrap().to_string_lossy());
+
+        let file_ext = match path.extension() {
+            Some(value) => String::from(value.to_string_lossy()),
+            None => String::from("")
+        };
+
         let mut f = File {
             id: 0,
             path: path_string.clone(),
             path_hash: xxh3::hash64(path_string.as_bytes()).to_string(),
             file_name: file_name,
+            file_ext: file_ext,
             title: "".to_string(),
             artist: "".to_string(),
             album: "".to_string(),
@@ -40,11 +48,12 @@ impl File {
         let conn = SQLite::connect();
 
         match conn.execute(
-            "INSERT INTO files (path_hash, path, file_name, title, artist, album) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            "INSERT INTO files (path_hash, path, file_name, file_ext, title, artist, album) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
             params![
                 self.path_hash,
                 self.path,
                 self.file_name,
+                self.file_ext,
                 self.title,
                 self.artist,
                 self.album,
@@ -55,10 +64,11 @@ impl File {
         }
 
         match conn.execute(
-            "INSERT INTO search (path, file_name, title, artist, album) VALUES (?1, ?2, ?3, ?4, ?5)",
+            "INSERT INTO search (path, file_name, file_ext, title, artist, album) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
             params![
                 self.path,
                 self.file_name,
+                self.file_ext,
                 self.title,
                 self.artist,
                 self.album,
