@@ -75,9 +75,18 @@
     }
   </style>
   <script>
+    function getUrl(path) {
+        let domainPrefix = 'http://localhost:1337/';
+
+        if (window.location.hostname === 'randomsound.uk') {
+            domainPrefix = 'https://randomsound.uk/';
+        }
+
+        return domainPrefix + path;
+    }
     function playRandomTune() {
       var request = new XMLHttpRequest();
-      request.open('GET', 'https://randomsound.uk/random', true);
+      request.open('GET', getUrl('random'), true);
       request.onload = function() {
         if (this.status == 200) {
           let resp = this.response;
