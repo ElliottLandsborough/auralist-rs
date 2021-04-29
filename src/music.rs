@@ -107,6 +107,6 @@ impl File {
             Err(e) => {
                 println!("Invalid file {} (error: {:?})", path.display(), e);
             }
-        };       
+        };
     }
 }
