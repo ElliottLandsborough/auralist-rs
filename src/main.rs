@@ -257,11 +257,16 @@ async fn serve() {
             warp::reply::json(&response)
         });
 
-    let routes = root
-        .or(search)
-        .or(random);
+    let cors = warp::cors()
+        .allow_any_origin()
+        //.allow_origin("https://randomsound.uk")
+        //.allow_origin("http://localhost:1338")
+        .allow_methods(vec!["GET", "POST", "DELETE"])
+        .allow_headers(vec!["User-Agent", "Sec-Fetch-Mode", "Referer", "Origin", "Access-Control-Request-Method", "Access-Control-Request-Headers"]);
 
-    warp::serve(routes)
+    let gets = warp::get().and(root.or(search).or(random)).with(cors);
+
+    warp::serve(gets)
         .run(([127, 0, 0, 1], 1337))
         .await;
 }
