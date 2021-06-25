@@ -2,7 +2,11 @@ use std::{env};
 use rusqlite::{params, Result as SQLiteResult};
 use walkdir::WalkDir;
 use std::path::Path;
-use warp::Filter;
+use std::convert::Infallible;
+use warp::{
+    http::StatusCode,
+    Filter, Rejection, Reply,
+};
 use serde::{Serialize, Deserialize};
 
 mod database;
@@ -257,6 +261,10 @@ async fn serve() {
             warp::reply::json(&response)
         });
 
+    // domain.tld/download/{path}
+    let directory_to_index = Settings::get("Indexer", "directory_to_index");
+    let download = warp::path("download").and(warp::fs::dir(directory_to_index));
+
     let cors = warp::cors()
         .allow_any_origin()
         //.allow_origin("https://randomsound.uk")
@@ -264,9 +272,29 @@ async fn serve() {
         .allow_methods(vec!["GET", "POST", "DELETE"])
         .allow_headers(vec!["User-Agent", "Sec-Fetch-Mode", "Referer", "Origin", "Access-Control-Request-Method", "Access-Control-Request-Headers"]);
 
-    let gets = warp::get().and(root.or(search).or(random)).with(cors);
+    let gets = warp::get().and(root.or(search).or(random).or(download)).with(cors).recover(handle_rejection);
 
     warp::serve(gets)
         .run(([127, 0, 0, 1], 1337))
         .await;
+}
+
+async fn handle_rejection(err: Rejection) -> std::result::Result<impl Reply, Infallible> {
+    let (code, message) = if err.is_not_found() {
+        eprintln!("unhandled error: {:?}", err);
+        (
+            StatusCode::NOT_FOUND,
+            "Not Found".to_string(),
+        )
+    } else if err.find::<warp::reject::PayloadTooLarge>().is_some() {
+        (StatusCode::BAD_REQUEST, "Payload too large".to_string())
+    } else {
+        eprintln!("unhandled error: {:?}", err);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Internal Server Error".to_string(),
+        )
+    };
+
+    Ok(warp::reply::with_status(message, code))
 }
