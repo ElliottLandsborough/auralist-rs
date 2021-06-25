@@ -8,6 +8,10 @@ class HelloWorld extends React.Component {
     this.state = this.getInitialState();
   }
 
+  componentDidMount() {
+    document.title = "randomsound.uk";
+  }
+
   getInitialState() {
     return {
       howl: false,
