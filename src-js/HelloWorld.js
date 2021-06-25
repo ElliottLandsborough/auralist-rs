@@ -14,7 +14,7 @@ class HelloWorld extends React.Component {
   }
 
   handleRandomClick(e) {
-    this.saySomething("element clicked");
+    this.playRandomTune();
   }
 
   componentDidMount() {
@@ -32,8 +32,9 @@ class HelloWorld extends React.Component {
   }
 
   playRandomTune() {
+    let self = this;
     var request = new XMLHttpRequest();
-    request.open('GET', getUrl('random'), true);
+    request.open('GET', this.getUrl('random'), true);
     request.onload = function() {
       if (this.status == 200) {
         let resp = this.response;
@@ -42,16 +43,8 @@ class HelloWorld extends React.Component {
         let artist = obj.data[0].artist;
         let album = obj.data[0].album;
         let file_name = obj.data[0].file_name;
-        let path = obj.data[0].path.replace('/home/ubuntu/music-sorted/', 'https://randomsound.uk/files/');
-        let audio = document.getElementById('audio');
-        let source = document.getElementById('audioSource');
-        source.src = path;
-        audio.load();
-        audio.play();
-        document.querySelector('#title').innerHTML = title;
-        document.querySelector('#artist').innerHTML = artist;
-        document.querySelector('#album').innerHTML = album;
-        document.querySelector('#file').innerHTML = file_name;
+        let path = self.getUrl('play' + obj.data[0].path);
+        self.saySomething(path);
       }
     }
 
