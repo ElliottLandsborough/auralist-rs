@@ -142,3 +142,14 @@ button {
 p {
     margin-top: 10px;
 }
+.button {
+    display: inline-block;
+    padding: 10px 20px;
+    cursor: pointer;
+    margin-top: 20px;
+    margin-bottom: 20px;
+    background-color: #333
+}
+.stop {
+    margin-left: 20px;
+}

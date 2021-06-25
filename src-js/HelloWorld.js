@@ -15,6 +15,7 @@ class HelloWorld extends React.Component {
       artist: false,
       album: false,
       file: false,
+      playing: false,
     };
   }
 
@@ -26,8 +27,14 @@ class HelloWorld extends React.Component {
     this.getAndPlay();
   }
 
+  handleStopClick(e) {
+    this.stop();
+    this.reportPlayState();
+  }
+
   componentDidMount() {
     this.saySomething("component did mount");
+    
   }
 
   getUrl(path) {
@@ -40,8 +47,18 @@ class HelloWorld extends React.Component {
     return domainPrefix + path;
   }
 
+  isPlaying() {
+    return this.state.howl instanceof Howl && this.state.howl.playing();
+  }
+
+  reportPlayState() {
+    let self = this;
+    this.setState({playing: self.isPlaying()});
+  }
+
   stop() {
-    if (this.state.howl instanceof Howl && this.state.howl.playing()) {
+    if (this.isPlaying()) {
+      console.log('why');
       this.state.howl.stop();
     }
   }
@@ -59,6 +76,9 @@ class HelloWorld extends React.Component {
         sound.once('unlock', function() {
           sound.play();
         });
+      },
+      onplay: function() {
+        self.reportPlayState();
       },
       onend: function() {
         self.stop();
@@ -119,10 +139,18 @@ class HelloWorld extends React.Component {
       album = <p>Album: <span id="album">{this.state.album}</span></p>
     }
 
+    let stop;
+    if (this.state.playing) {
+      stop = <a onClick={this.handleStopClick.bind(this)} className=" button stop">Stop</a>
+    }
+
     return (
       <div className="container">
         <h1>randomsound.uk</h1>
-        <button onClick={this.handleRandomClick.bind(this)} id="roll">Roll the dice...</button>
+        <div className="controls">
+          <a onClick={this.handleRandomClick.bind(this)} className=" button play">Play/Next</a>
+          {stop}
+        </div>
         {file}
         {title}
         {artist}
