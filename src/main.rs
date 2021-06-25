@@ -171,8 +171,14 @@ fn random_song() -> SQLiteResult<Vec<File>> {
     let mut stmt = conn.prepare(query)?;
 
     let rows = stmt.query_map(params![], |row| {
+        let directory_to_index = Settings::get("Indexer", "directory_to_index");
+ 
+        let full_path: String = row.get(0)?;
+
+        let path = str::replace(&full_path, &directory_to_index, "");
+ 
         search_result_to_file(
-            row.get(0)?, // path
+            path, // path
             row.get(1)?, // filename
             row.get(2)?, // ext
             row.get(3)?, // title
