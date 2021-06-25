@@ -2,3 +2,5 @@
 conf.ini
 auralist.sq*
 .DS_store
+node_modules
+build

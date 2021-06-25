@@ -1,6 +1,17 @@
 # auralist-rs
 
 ## How?
+
+### Client
+
+Development
+```
+npm install
+npm run start
+```
+
+### Server
+
 Dependencies
 ```
 $ sudo apt install libsqlite3-dev libsqlite3-0 libtagc0-dev
@@ -21,4 +32,8 @@ $ cargo run init
 Index files
 ```
 $ cargo run index
+```
+Serve
+```
+$ cargo run serve
 ```
