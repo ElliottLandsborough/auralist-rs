@@ -39,14 +39,18 @@ class HelloWorld extends React.Component {
     return domainPrefix + path;
   }
 
-  play(url) {
-    this.saySomething(url);
-
-    let self = this;
-
+  stop() {
     if (this.state.howl instanceof Howl && this.state.howl.playing()) {
       this.state.howl.stop();
     }
+  }
+
+  play(url) {
+    this.stop();
+
+    this.saySomething(url);
+
+    let self = this;
 
     this.state.howl = new Howl({
       src: [url],
@@ -56,7 +60,8 @@ class HelloWorld extends React.Component {
         });
       },
       onend: function() {
-        self.getAndPlay()
+        self.stop();
+        self.getAndPlay();
       }
     });
 
