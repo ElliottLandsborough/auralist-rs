@@ -19,10 +19,6 @@ class HelloWorld extends React.Component {
     };
   }
 
-  saySomething(something) {
-    console.log(something);
-  }
-
   handleRandomClick(e) {
     this.getAndPlay();
   }
@@ -30,11 +26,6 @@ class HelloWorld extends React.Component {
   handleStopClick(e) {
     this.stop();
     this.reportPlayState();
-  }
-
-  componentDidMount() {
-    this.saySomething("component did mount");
-    
   }
 
   getUrl(path) {
@@ -65,8 +56,6 @@ class HelloWorld extends React.Component {
 
   play(url) {
     this.stop();
-
-    this.saySomething(url);
 
     let self = this;
 
@@ -148,7 +137,7 @@ class HelloWorld extends React.Component {
       <div className="container">
         <h1>randomsound.uk</h1>
         <div className="controls">
-          <a onClick={this.handleRandomClick.bind(this)} className=" button play">Play/Next</a>
+          <a onClick={this.handleRandomClick.bind(this)} className=" button play">Play / next</a>
           {stop}
         </div>
         {file}
