@@ -267,9 +267,9 @@ async fn serve() {
             warp::reply::json(&response)
         });
 
-    // domain.tld/download/{path}
+    // domain.tld/play/{path}
     let directory_to_index = Settings::get("Indexer", "directory_to_index");
-    let download = warp::path("download").and(warp::fs::dir(directory_to_index));
+    let play = warp::path("play").and(warp::fs::dir(directory_to_index));
 
     let cors = warp::cors()
         .allow_any_origin()
@@ -278,7 +278,7 @@ async fn serve() {
         .allow_methods(vec!["GET", "POST", "DELETE"])
         .allow_headers(vec!["User-Agent", "Sec-Fetch-Mode", "Referer", "Origin", "Access-Control-Request-Method", "Access-Control-Request-Headers"]);
 
-    let gets = warp::get().and(root.or(search).or(random).or(download)).with(cors).recover(handle_rejection);
+    let gets = warp::get().and(root.or(search).or(random).or(play)).with(cors).recover(handle_rejection);
 
     warp::serve(gets)
         .run(([127, 0, 0, 1], 1337))
