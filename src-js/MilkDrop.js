@@ -5,13 +5,6 @@ import butterchurnPresets from 'butterchurn-presets';
 export default class Milkdrop extends React.Component {
   constructor(props) {
     super(props);
-    this.state = {
-      isFullscreen: false,
-      presets: false,
-    };
-    this._handleFocusedKeyboardInput = this._handleFocusedKeyboardInput.bind(
-      this
-    );
   }
 
   async componentDidMount() {
@@ -31,10 +24,21 @@ export default class Milkdrop extends React.Component {
 
     this.visualizer.connectAudio(this.props.audio._node);
 
+    // load a preset
+    const presets = butterchurnPresets.getPresets();
+    const preset = presets['Flexi, martin + geiss - dedicated to the sherwin maxawow'];
+
+    this.visualizer.loadPreset(preset, 0.0); // 2nd argument is the number of seconds to blend presets
+
+    this.visualizer.setRendererSize(this.props.width, this.props.height);
+
+    self = this;
+
     // Kick off the animation loop
     const loop = () => {
-      if (this.props.playing && this.props.isEnabledVisualizer) {
-        this.visualizer.render();
+      if (self.props.playing) {
+        self.visualizer.render();
+        console.log('render');
       }
       this._animationFrameRequest = window.requestAnimationFrame(loop);
     };
@@ -90,18 +94,6 @@ export default class Milkdrop extends React.Component {
       case 72: // H
         this._nextPreset(0);
         break;
-      case 82: // R
-        this.props.presets.toggleRandomize();
-        break;
-      case 76: // L
-        this.setState({ presetOverlay: !this.state.presetOverlay });
-        e.stopPropagation();
-        break;
-      case 145: // scroll lock
-      case 125: // F14 (scroll lock for OS X)
-        this.presetCycle = !this.presetCycle;
-        this._restartCycling();
-        break;
     }
   }
 
@@ -117,9 +109,6 @@ export default class Milkdrop extends React.Component {
     if (preset != null) {
       this.visualizer.loadPreset(preset, blendTime);
       this._restartCycling();
-      // TODO: Kinda weird that we use the passed preset for the visualizer,
-      // but set state to the current. Maybe we should just always use the curent..
-      this.setState({ currentPreset: this.state.presets.getCurrentIndex() });
     }
   }
 

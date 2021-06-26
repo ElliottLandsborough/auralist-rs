@@ -157,7 +157,7 @@ p {
     width: 400px;
     height: 300px;
     border: 1px solid #fff;
-    margin: 0 auto;
+    margin: 20px auto;
 }
 .milk-drop canvas {
     width: 100%;

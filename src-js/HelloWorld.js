@@ -2,7 +2,6 @@ import 'style.css';
 import React from 'react';
 import {Howl, Howler} from 'howler';
 import MilkDrop from './MilkDrop';
-import butterchurnPresets from 'butterchurn-presets';
 
 class HelloWorld extends React.Component {
   constructor(props) {
@@ -150,7 +149,17 @@ class HelloWorld extends React.Component {
 
     let milkDrop;
     if (this.state.playing) {
-      milkDrop = <MilkDrop width="400" height="300" context={this.state.context} audio={this.state.audio} />
+      milkDrop = (
+        <div className="milk-drop">
+          <MilkDrop
+            width="400"
+            height="300"
+            context={this.state.context}
+            audio={this.state.audio}
+            playing={this.isPlaying()}
+          />
+        </div>
+      )
     }
 
     return (
@@ -167,9 +176,7 @@ class HelloWorld extends React.Component {
         <div className="search">
 
         </div>
-        <div className="milk-drop">
-          {milkDrop}
-        </div>
+        {milkDrop}
       </div>
     );
   }
