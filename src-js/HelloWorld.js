@@ -33,7 +33,6 @@ class HelloWorld extends React.Component {
 
   handleStopClick(e) {
     this.stop();
-    this.reportPlayState();
   }
 
   getUrl(path) {
@@ -65,6 +64,7 @@ class HelloWorld extends React.Component {
   stop() {
     if (this.isPlaying()) {
       this.state.howl.stop();
+      this.reportPlayState();
     }
   }
 

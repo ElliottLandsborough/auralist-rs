@@ -50,7 +50,7 @@ export default class Milkdrop extends React.Component {
 
   loadRandomPreset() {
     const preset = this.randomPreset();
-    this.visualizer.loadPreset(preset.item, 0.5);
+    this.visualizer.loadPreset(preset.item, 2);
     this.setState({preset: preset});
   }
 
@@ -68,7 +68,6 @@ export default class Milkdrop extends React.Component {
 
   componentWillUnmount() {
     this._pauseViz();
-    this._stopCycling();
   }
 
   componentDidUpdate(prevProps) {
@@ -87,23 +86,6 @@ export default class Milkdrop extends React.Component {
     }
   }
 
-  _stopCycling() {
-    if (this.cycleInterval) {
-      clearInterval(this.cycleInterval);
-      this.cycleInterval = null;
-    }
-  }
-
-  _restartCycling() {
-    this._stopCycling();
-
-    if (this.presetCycle) {
-      this.cycleInterval = setInterval(() => {
-        this._nextPreset(PRESET_TRANSITION_SECONDS);
-      }, MILLISECONDS_BETWEEN_PRESET_TRANSITIONS);
-    }
-  }
-
   handleChangeClick(e) {
     this.loadRandomPreset();
   }
@@ -117,7 +99,7 @@ export default class Milkdrop extends React.Component {
           ref={node => (this._canvasNode = node)}
         />
         <p>{this.state.preset.name}</p>
-        <button onClick={this.handleChangeClick.bind(this)}>Change</button>
+        <button onClick={this.handleChangeClick.bind(this)}>Change preset</button>
       </div>
     );
   }
