@@ -68,7 +68,7 @@ export default class Milkdrop extends React.Component {
   }
 
   componentWillUnmount() {
-    this._pause();
+    this.pause();
   }
 
   componentDidUpdate(prevProps) {
