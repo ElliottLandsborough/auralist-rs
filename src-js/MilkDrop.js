@@ -5,10 +5,21 @@ import butterchurnPresets from 'butterchurn-presets';
 export default class Milkdrop extends React.Component {
   constructor(props) {
     super(props);
+    this.state = this.getInitialState();
+  }
+
+  getInitialState() {
+    return {
+      presets: [],
+      preset: {
+        name: '',
+        item: {}
+      }
+    };
   }
 
   async componentDidMount() {
-    this.setState({presets: butterchurnPresets});
+    this.setState({presets: butterchurnPresets.getPresets()});
   
     this.visualizer = butterchurn.createVisualizer(
       this.props.context,
@@ -23,26 +34,36 @@ export default class Milkdrop extends React.Component {
     );
 
     this.visualizer.connectAudio(this.props.audio._node);
-
-    // load a preset
-    const presets = butterchurnPresets.getPresets();
-    const preset = presets['Flexi, martin + geiss - dedicated to the sherwin maxawow'];
-
-    this.visualizer.loadPreset(preset, 0.0); // 2nd argument is the number of seconds to blend presets
-
     this.visualizer.setRendererSize(this.props.width, this.props.height);
+    this.loadRandomPreset();
 
     self = this;
 
-    // Kick off the animation loop
     const loop = () => {
       if (self.props.playing) {
         self.visualizer.render();
-        console.log('render');
       }
       this._animationFrameRequest = window.requestAnimationFrame(loop);
     };
     loop();
+  }
+
+  loadRandomPreset() {
+    const preset = this.randomPreset();
+    this.visualizer.loadPreset(preset.item, 0.5);
+    this.setState({preset: preset});
+  }
+
+  randomPreset() {
+    const list = butterchurnPresets.getPresets();
+    const keys = Object.keys(list);
+    const randomIndex = keys[Math.floor(Math.random() * keys.length)];
+    const item = list[randomIndex];
+
+    return {
+      name: randomIndex,
+      item: item
+    };
   }
 
   componentWillUnmount() {
@@ -83,44 +104,21 @@ export default class Milkdrop extends React.Component {
     }
   }
 
-  _handleFocusedKeyboardInput(e) {
-    switch (e.keyCode) {
-      case 32: // spacebar
-        this._nextPreset(USER_PRESET_TRANSITION_SECONDS);
-        break;
-      case 8: // backspace
-        this._prevPreset(0);
-        break;
-      case 72: // H
-        this._nextPreset(0);
-        break;
-    }
-  }
-
-  async _nextPreset(blendTime) {
-    this.selectPreset(await this.state.presets.next(), blendTime);
-  }
-
-  async _prevPreset(blendTime) {
-    this.selectPreset(await this.state.presets.previous(), blendTime);
-  }
-
-  selectPreset(preset, blendTime = 0) {
-    if (preset != null) {
-      this.visualizer.loadPreset(preset, blendTime);
-      this._restartCycling();
-    }
+  handleChangeClick(e) {
+    this.loadRandomPreset();
   }
 
   render() {
     return (
-      <React.Fragment>
+      <div className="milk-drop">
         <canvas
           height={this.props.height}
           width={this.props.width}
           ref={node => (this._canvasNode = node)}
         />
-      </React.Fragment>
+        <p>{this.state.preset.name}</p>
+        <button onClick={this.handleChangeClick.bind(this)}>Change</button>
+      </div>
     );
   }
 }

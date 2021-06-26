@@ -150,15 +150,13 @@ class HelloWorld extends React.Component {
     let milkDrop;
     if (this.state.playing) {
       milkDrop = (
-        <div className="milk-drop">
-          <MilkDrop
-            width="400"
-            height="300"
-            context={this.state.context}
-            audio={this.state.audio}
-            playing={this.isPlaying()}
-          />
-        </div>
+        <MilkDrop
+          width="400"
+          height="300"
+          context={this.state.context}
+          audio={this.state.audio}
+          playing={this.isPlaying()}
+        />
       )
     }
 
