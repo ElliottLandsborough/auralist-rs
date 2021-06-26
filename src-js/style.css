@@ -153,3 +153,13 @@ p {
 .stop {
     margin-left: 20px;
 }
+.milk-drop {
+    width: 400px;
+    height: 300px;
+    border: 1px solid #fff;
+    margin: 0 auto;
+}
+.milk-drop canvas {
+    width: 100%;
+    height: 100%;
+}

@@ -1,6 +1,8 @@
 import 'style.css';
 import React from 'react';
 import {Howl, Howler} from 'howler';
+import MilkDrop from './MilkDrop';
+import butterchurnPresets from 'butterchurn-presets';
 
 class HelloWorld extends React.Component {
   constructor(props) {
@@ -20,6 +22,9 @@ class HelloWorld extends React.Component {
       album: false,
       file: false,
       playing: false,
+      context: false,
+      audio: false,
+      soundID: false,
     };
   }
 
@@ -47,13 +52,19 @@ class HelloWorld extends React.Component {
   }
 
   reportPlayState() {
-    let self = this;
-    this.setState({playing: self.isPlaying()});
+    const isPlaying = this.isPlaying();
+
+    this.setState(
+      {
+        playing: isPlaying,
+        context: isPlaying ? Howler.ctx : false,
+        audio: isPlaying ? this.state.howl._soundById(this.state.soundID) : false
+      }
+    );
   }
 
   stop() {
     if (this.isPlaying()) {
-      console.log('why');
       this.state.howl.stop();
     }
   }
@@ -79,7 +90,9 @@ class HelloWorld extends React.Component {
       }
     });
 
-    this.state.howl.play();
+    let soundID = this.state.howl.play();
+
+    this.setState({soundID: soundID});
   }
 
   getAndPlay() {
@@ -110,8 +123,6 @@ class HelloWorld extends React.Component {
   }
 
   render() {
-    console.log(this.state.file);
-
     let file;
     if (this.state.file) {
       file = <p>File: <span id="file">{this.state.file}</span></p>
@@ -137,6 +148,11 @@ class HelloWorld extends React.Component {
       stop = <a onClick={this.handleStopClick.bind(this)} className=" button stop">Stop</a>
     }
 
+    let milkDrop;
+    if (this.state.playing) {
+      milkDrop = <MilkDrop width="400" height="300" context={this.state.context} audio={this.state.audio} />
+    }
+
     return (
       <div className="container">
         <h1>randomsound.uk</h1>
@@ -148,6 +164,12 @@ class HelloWorld extends React.Component {
         {title}
         {artist}
         {album}
+        <div className="search">
+
+        </div>
+        <div className="milk-drop">
+          {milkDrop}
+        </div>
       </div>
     );
   }
