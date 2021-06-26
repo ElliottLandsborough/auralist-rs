@@ -50,6 +50,7 @@ export default class Milkdrop extends React.Component {
 
   loadRandomPreset() {
     const preset = this.randomPreset();
+    // "Flexi - infused with the spiral" is good...
     this.visualizer.loadPreset(preset.item, 2);
     this.setState({preset: preset});
   }
@@ -67,7 +68,7 @@ export default class Milkdrop extends React.Component {
   }
 
   componentWillUnmount() {
-    this._pauseViz();
+    this._pause();
   }
 
   componentDidUpdate(prevProps) {
@@ -79,7 +80,7 @@ export default class Milkdrop extends React.Component {
     }
   }
 
-  _pauseViz() {
+  pause() {
     if (this._animationFrameRequest) {
       window.cancelAnimationFrame(this._animationFrameRequest);
       this._animationFrameRequest = null;
