@@ -68,13 +68,14 @@ class HelloWorld extends React.Component {
     }
   }
 
-  play(url) {
+  play(url, ext) {
     this.stop();
 
     let self = this;
 
     this.state.howl = new Howl({
       src: [url],
+      format: [ext],
       onplayerror: function() {
         sound.once('unlock', function() {
           sound.play();
@@ -113,8 +114,12 @@ class HelloWorld extends React.Component {
           file: file.length > 0 ? file : false,
         });
 
-        let url = self.getUrl('play' + obj.data[0].path);
-        self.play(url);
+        let url = self.getUrl('stream/' + obj.data[0].path);
+
+        let re = /(?:\.([^.]+))?$/;
+        let ext = re.exec(file)[1];
+
+        self.play(url, ext);
       }
     }
 

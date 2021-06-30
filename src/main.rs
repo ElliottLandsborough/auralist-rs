@@ -194,8 +194,8 @@ fn random_song() -> SQLiteResult<Vec<File>> {
     Ok(files)
 }
 
-fn stream_song(input: String) -> SQLiteResult<Vec<File>> {
-    let query = "SELECT id, path, file_name, file_ext, title, artist, album FROM `files` WHERE `id` IN (SELECT file FROM plays WHERE hash = :input);";
+fn find_song_by_hash(input: String) -> SQLiteResult<Vec<File>> {
+    let query = "SELECT id, path, file_name, file_ext, title, artist, album FROM `files` WHERE `id` IN (SELECT file FROM plays WHERE hash = :input) LIMIT 0, 1;";
     println!("{}", query);
     let conn = SQLite::connect();
 
@@ -220,6 +220,52 @@ fn stream_song(input: String) -> SQLiteResult<Vec<File>> {
     }
 
     Ok(files)
+}
+
+fn first_song_from_vec(files: Vec<File>) -> Result<File, &'static str> {
+    if files.len() == 1 {
+        // Restore connection from db file
+        let file = files.into_iter().nth(0).unwrap();
+
+        return Ok(file)
+    }
+
+    Err("No files in supplied vector")
+}
+
+fn get_file_from_hash(hash: String) -> Result<File, &'static str> {
+    let files = match find_song_by_hash(hash) {
+        Ok(files) => files,
+        Err(error) => panic!("Problem with search: {:?}", error),
+    };
+
+    let file = match first_song_from_vec(files.clone()) {
+        Ok(file) => file,
+        Err(error) => panic!("Problem with search: {:?}", error),
+    };
+
+    Ok(file)
+}
+
+fn get_mime_from_hash(hash: String) -> String {
+    let file = match get_file_from_hash(hash.to_string()) {
+        Ok(file) => file,
+        Err(error) => panic!("Problem with file get: {:?}", error),
+    };
+
+    let guess = mime_guess::from_ext(&file.file_ext).first().unwrap();
+    let mime = guess.essence_str();
+
+    mime.to_string()
+}
+
+fn get_path_from_hash(hash: String) -> String {
+    let file = match get_file_from_hash(hash.to_string()) {
+        Ok(file) => file,
+        Err(error) => panic!("Problem with file get: {:?}", error),
+    };
+
+    file.path
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -295,26 +341,13 @@ async fn serve() {
 
     // domain.tld/stream/[anything]
     let stream = warp::path!("stream" / String)
-        .map(|query| {
-            let files = match stream_song(query) {
-                Ok(files) => files,
-                Err(error) => panic!("Problem with search: {:?}", error),
-            };
-
-            let response = FileResponse {
-                status: 200,
-                message: "OK".to_string(),
-                count: files.len(),
-                data: files
-            };
-
-            warp::reply::json(&response)
-        });
+        .and(filter_range())
+        .and_then(move |hash: String, range_header: String| get_range(range_header, hash))
+        .map(with_partial_content_status);
 
     let cors = warp::cors()
-        .allow_any_origin()
-        //.allow_origin("https://randomsound.uk")
-        //.allow_origin("http://localhost:1338")
+        //.allow_any_origin()
+        .allow_origins(vec!["https://randomsound.uk", "http://localhost:1338"])
         .allow_methods(vec!["GET", "POST", "DELETE"])
         .allow_headers(vec!["User-Agent", "Sec-Fetch-Mode", "Referer", "Origin", "Access-Control-Request-Method", "Access-Control-Request-Headers"]);
 
@@ -343,4 +376,105 @@ async fn handle_rejection(err: Rejection) -> std::result::Result<impl Reply, Inf
     };
 
     Ok(warp::reply::with_status(message, code))
+}
+
+// borrowed from warp-range
+use async_stream::stream;
+use std::{
+    cmp::min, io::SeekFrom, num::ParseIntError
+};
+use tokio::io::{
+    AsyncReadExt, AsyncSeekExt
+};
+use warp::{
+    http::HeaderValue, hyper::HeaderMap, reply::WithStatus
+};
+
+/// This function filters and extracts the "Range"-Header
+pub fn filter_range() -> impl Filter<Extract = (String,), Error = Rejection> + Copy {
+    warp::header::<String>("Range")
+}
+
+/// This function retrives the range of bytes requested by the web client
+pub async fn get_range(range_header: String, hash: String) -> Result<impl warp::Reply, Rejection> {
+    internal_get_range(range_header, hash).await.map_err(|e| {
+        println!("Error in get_range: {}", e.message);
+        warp::reject()
+    })
+}
+
+/// This function adds the "206 Partial Content" header
+pub fn with_partial_content_status<T: Reply>(reply: T) -> WithStatus<T> {
+    warp::reply::with_status(reply, StatusCode::PARTIAL_CONTENT) 
+}
+
+fn get_range_params(range: &str, size: u64)->Result<(u64, u64), Error> {
+    let range: Vec<String> = range
+        .replace("bytes=", "")
+        .split("-")
+        .filter_map(|n| if n.len() > 0 {Some(n.to_string())} else {None})
+        .collect();
+    let start = if range.len() > 0 { 
+        range[0].parse::<u64>()? 
+    } else { 
+        0 
+    };
+    let end = if range.len() > 1 {
+        range[1].parse::<u64>()?
+    } else {
+        size-1 
+    };
+    Ok((start, end))
+}
+
+#[derive(Debug)]
+struct Error {
+    message: String
+}
+
+impl From<std::io::Error> for Error {
+    fn from(err: std::io::Error) -> Self {
+        Error { message: err.to_string() }
+    }
+}
+impl From<ParseIntError> for Error {
+    fn from(err: ParseIntError) -> Self {
+        Error { message: err.to_string() }
+    }
+}
+
+async fn internal_get_range(range_header: String, hash: String) -> Result<impl warp::Reply, Error> {
+    
+    let path = get_path_from_hash(hash.clone());
+    let mime = get_mime_from_hash(hash);
+
+    let mut file = tokio::fs::File::open(path).await?;
+    let metadata = file.metadata().await?;
+    let size = metadata.len();
+    let (start_range, end_range) = get_range_params(&range_header, size)?;
+    let byte_count = end_range - start_range + 1;
+    file.seek(SeekFrom::Start(start_range)).await?;
+
+    let stream = stream! {
+        let bufsize = 16384;
+        let cycles = byte_count / bufsize as u64 + 1;
+        let mut sent_bytes: u64 = 0;
+        for _ in 0..cycles {
+            let mut buffer: Vec<u8> = vec![0; min(byte_count - sent_bytes, bufsize) as usize];
+            let bytes_read = file.read_exact(&mut buffer).await.unwrap();
+            sent_bytes += bytes_read as u64;
+            yield Ok(buffer) as Result<Vec<u8>, hyper::Error>;
+        }
+    };
+    let body = hyper::Body::wrap_stream(stream);
+    let mut response = warp::reply::Response::new(body);
+    
+    let headers = response.headers_mut();
+    let mut header_map = HeaderMap::new();
+    header_map.insert("Content-Type", HeaderValue::from_str(&mime).unwrap());
+    header_map.insert("Accept-Ranges", HeaderValue::from_str("bytes").unwrap());
+    header_map.insert("Content-Range", HeaderValue::from_str(&format!("bytes {}-{}/{}", start_range, end_range, size)).unwrap());
+    header_map.insert("Content-Length", HeaderValue::from(byte_count));
+    headers.extend(header_map);
+    Ok (response)
 }
