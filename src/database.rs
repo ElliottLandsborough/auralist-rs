@@ -40,7 +40,7 @@ impl SQLite {
             id        INTEGER PRIMARY KEY,
             hash      TEXT,
             time      INTEGER,
-            file      INTEGER,
+            file      INTEGER
         );
 
         CREATE INDEX hash ON plays (hash);
