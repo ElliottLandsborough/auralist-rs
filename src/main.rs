@@ -194,6 +194,34 @@ fn random_song() -> SQLiteResult<Vec<File>> {
     Ok(files)
 }
 
+fn stream_song(input: String) -> SQLiteResult<Vec<File>> {
+    let query = "SELECT id, path, file_name, file_ext, title, artist, album FROM `files` WHERE `id` IN (SELECT file FROM plays WHERE hash = :input);";
+    println!("{}", query);
+    let conn = SQLite::connect();
+
+    let mut stmt = conn.prepare(query)?;
+
+    let rows = stmt.query_and_then_named(&[(":input", &input)], |row| {
+        search_result_to_file(
+            row.get(0)?, // id
+            row.get(1)?, // path
+            row.get(2)?, // filename
+            row.get(3)?, // ext
+            row.get(4)?, // title
+            row.get(5)?, // artist
+            row.get(6)?, // album
+        )
+    })?;
+
+    let mut files: Vec<File> = Vec::new();
+
+    for file in rows {
+        files.push(file?);
+    }
+
+    Ok(files)
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 struct EmptyResponse {
     pub status: i32,
@@ -265,9 +293,23 @@ async fn serve() {
             warp::reply::json(&response)
         });
 
-    // domain.tld/play/{path}
-    let directory_to_index = Settings::get("Indexer", "directory_to_index");
-    let play = warp::path("play").and(warp::fs::dir(directory_to_index));
+    // domain.tld/stream/[anything]
+    let stream = warp::path!("stream" / String)
+        .map(|query| {
+            let files = match stream_song(query) {
+                Ok(files) => files,
+                Err(error) => panic!("Problem with search: {:?}", error),
+            };
+
+            let response = FileResponse {
+                status: 200,
+                message: "OK".to_string(),
+                count: files.len(),
+                data: files
+            };
+
+            warp::reply::json(&response)
+        });
 
     let cors = warp::cors()
         .allow_any_origin()
@@ -276,7 +318,7 @@ async fn serve() {
         .allow_methods(vec!["GET", "POST", "DELETE"])
         .allow_headers(vec!["User-Agent", "Sec-Fetch-Mode", "Referer", "Origin", "Access-Control-Request-Method", "Access-Control-Request-Headers"]);
 
-    let gets = warp::get().and(root.or(search).or(random).or(play)).with(cors).recover(handle_rejection);
+    let gets = warp::get().and(root.or(search).or(random).or(stream)).with(cors).recover(handle_rejection);
 
     warp::serve(gets)
         .run(([127, 0, 0, 1], 1337))
