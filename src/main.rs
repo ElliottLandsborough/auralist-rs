@@ -96,19 +96,18 @@ fn get_files(directory: std::string::String) -> Result<(), walkdir::Error> {
 }
 
 fn test_db() -> SQLiteResult<()> {
-    println!("Query: SELECT id, path, path_hash FROM files");
+    println!("Query: SELECT id, path FROM files");
     let conn = SQLite::connect();
-    let mut stmt = conn.prepare("SELECT id, path, path_hash, file_name, file_ext, album, artist, title FROM files")?;
+    let mut stmt = conn.prepare("SELECT id, path, file_name, file_ext, album, artist, title FROM files")?;
     let file_iter = stmt.query_map(params![], |row| {
         Ok(File {
             id: row.get(0)?,
             path: row.get(1)?,
-            path_hash: row.get(2)?,
-            file_name: row.get(3)?,
-            file_ext: row.get(4)?,
-            album: row.get(5)?,
-            artist: row.get(6)?,
-            title: row.get(7)?,
+            file_name: row.get(2)?,
+            file_ext: row.get(3)?,
+            album: row.get(4)?,
+            artist: row.get(5)?,
+            title: row.get(6)?,
         })
     })?;
 
@@ -122,17 +121,20 @@ fn test_db() -> SQLiteResult<()> {
     Ok(())
 }
 
-fn search_result_to_file(path: String, file_name: String, file_ext: String, title: String, artist: String, album: String) -> SQLiteResult<File> {
-    Ok(File {
-        id: 0, // fix this
-        path_hash: "123".to_string(), // fix this
+fn search_result_to_file(id: i64, path: String, file_name: String, file_ext: String, title: String, artist: String, album: String) -> SQLiteResult<File> {
+    let mut file = File {
+        id: id,
         path: path,
         file_name: file_name,
         file_ext: file_ext,
         album: album,
         artist: artist,
         title: title,
-    })
+    };
+
+    file.get_unique_id();
+
+    Ok(file)
 }
 
 fn search_db(input: String) -> SQLiteResult<Vec<File>> {
@@ -145,12 +147,13 @@ fn search_db(input: String) -> SQLiteResult<Vec<File>> {
 
     let rows = stmt.query_and_then_named(&[(":input", &input)], |row| {
         search_result_to_file(
-            row.get(0)?, // path
-            row.get(1)?, // filename
-            row.get(2)?, // ext
-            row.get(3)?, // title
-            row.get(4)?, // artist
-            row.get(5)?, // album
+            row.get(1)?, // id
+            row.get(2)?, // path
+            row.get(3)?, // filename
+            row.get(4)?, // ext
+            row.get(5)?, // title
+            row.get(6)?, // artist
+            row.get(7)?, // album
         )
     })?;
 
@@ -164,26 +167,21 @@ fn search_db(input: String) -> SQLiteResult<Vec<File>> {
 }
 
 fn random_song() -> SQLiteResult<Vec<File>> {
-    let query = "SELECT path, file_name, file_ext, title, artist, album FROM `files` WHERE `file_ext` = 'mp3' AND _ROWID_ >= (abs(random()) % (SELECT max(_ROWID_) FROM `files`)) LIMIT 1;";
+    let query = "SELECT id, path, file_name, file_ext, title, artist, album FROM `files` WHERE `file_ext` = 'mp3' AND _ROWID_ >= (abs(random()) % (SELECT max(_ROWID_) FROM `files`)) LIMIT 1;";
     println!("{}", query);
     let conn = SQLite::connect();
 
     let mut stmt = conn.prepare(query)?;
 
     let rows = stmt.query_map(params![], |row| {
-        let directory_to_index = Settings::get("Indexer", "directory_to_index");
- 
-        let full_path: String = row.get(0)?;
-
-        let path = str::replace(&full_path, &directory_to_index, "");
- 
         search_result_to_file(
-            path, // path
-            row.get(1)?, // filename
-            row.get(2)?, // ext
-            row.get(3)?, // title
-            row.get(4)?, // artist
-            row.get(5)?, // album
+            row.get(0)?, // id
+            row.get(1)?, // path
+            row.get(2)?, // filename
+            row.get(3)?, // ext
+            row.get(4)?, // title
+            row.get(5)?, // artist
+            row.get(6)?, // album
         )
     })?;
 

@@ -1,16 +1,16 @@
 use rusqlite::params;
 use crate::database::SQLite;
-use twox_hash::xxh3;
 use std::path::Path;
 extern crate taglib;
 use serde::{Serialize, Deserialize};
+use uuid::Uuid;
+use std::time::{SystemTime, UNIX_EPOCH};
 //extern crate tree_magic;
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct File {
-    pub id: i32,
+    pub id: i64,
     pub path: String,
-    pub path_hash: String,
     pub file_name: String,
     pub file_ext: String,
     pub title: String,
@@ -30,8 +30,7 @@ impl File {
 
         let mut f = File {
             id: 0,
-            path: path_string.clone(),
-            path_hash: xxh3::hash64(path_string.as_bytes()).to_string(),
+            path: path_string,
             file_name: file_name,
             file_ext: file_ext,
             title: "".to_string(),
@@ -48,9 +47,8 @@ impl File {
         let conn = SQLite::connect();
 
         match conn.execute(
-            "INSERT INTO files (path_hash, path, file_name, file_ext, title, artist, album) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            "INSERT INTO files (path, file_name, file_ext, title, artist, album) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
             params![
-                self.path_hash,
                 self.path,
                 self.file_name,
                 self.file_ext,
@@ -108,5 +106,32 @@ impl File {
                 println!("Invalid file {} (error: {:?})", path.display(), e);
             }
         };
+    }
+
+    pub fn get_unique_id(&mut self) {
+        let conn = SQLite::connect();
+
+        let uuid = Uuid::new_v4().to_string();
+
+        let now = match SystemTime::now().duration_since(UNIX_EPOCH) {
+            Ok(n) => n.as_secs(),
+            Err(_) => panic!("SystemTime before UNIX EPOCH!"),
+        } as f64;
+
+        match conn.execute(
+            "INSERT INTO plays (hash, time, file) VALUES (?1, ?2, ?3)",
+            params![
+                uuid,
+                now,
+                self.id,
+            ],
+        ) {
+            Ok(_) => println!("ID: {}", uuid),
+            Err(err) => println!("Update failed: {}", err),
+        }
+
+        self.path = uuid;
+
+        return;
     }
 }

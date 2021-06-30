@@ -28,7 +28,6 @@ impl SQLite {
         let sql = "
         CREATE TABLE files (
             id        INTEGER PRIMARY KEY,
-            path_hash TEXT NOT NULL,
             path      TEXT NOT NULL,
             file_name TEXT NOT NULL,
             file_ext TEXT NOT NULL,
@@ -37,7 +36,16 @@ impl SQLite {
             album     TEXT NOT NULL
         );
 
-        CREATE UNIQUE INDEX path_hash ON file (path_hash);
+        CREATE TABLE plays (
+            id        INTEGER PRIMARY KEY,
+            hash      TEXT,
+            time      INTEGER,
+            file      INTEGER,
+        );
+
+        CREATE INDEX hash ON plays (hash);
+        CREATE INDEX time ON plays (time);
+        CREATE INDEX file ON plays (file);
         ";
     
         match conn.execute_batch(sql) {
