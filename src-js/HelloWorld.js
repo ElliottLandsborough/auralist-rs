@@ -76,6 +76,7 @@ class HelloWorld extends React.Component {
     this.state.howl = new Howl({
       src: [url],
       format: [ext],
+      // html5: true, // for instant play
       onplayerror: function() {
         sound.once('unlock', function() {
           sound.play();
@@ -149,7 +150,7 @@ class HelloWorld extends React.Component {
 
     let stop;
     if (this.state.playing) {
-      stop = <a onClick={this.handleStopClick.bind(this)} className=" button stop">Stop</a>
+      stop = <a onClick={this.handleStopClick.bind(this)} className="button stop">Stop</a>
     }
 
     let milkDrop;
@@ -169,7 +170,7 @@ class HelloWorld extends React.Component {
       <div className="container">
         <h1>randomsound.uk</h1>
         <div className="controls">
-          <a onClick={this.handleRandomClick.bind(this)} className=" button play">Play / next</a>
+          <a onClick={this.handleRandomClick.bind(this)} className="button play">Play / next</a>
           {stop}
         </div>
         {file}
