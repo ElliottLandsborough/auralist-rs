@@ -52,10 +52,6 @@ class HelloWorld extends React.Component {
   reportPlayState() {
     const isPlaying = this.isPlaying();
 
-    console.log(Howler.ctx);
-    console.log(this.state.soundID);
-    console.log(this.state.howl._soundById(this.state.soundID));
-
     this.setState(
       {
         playing: isPlaying,
