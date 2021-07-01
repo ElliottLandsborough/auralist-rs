@@ -23,6 +23,11 @@ module.exports = {
         },
       },
       {
+        test: /\.js$/,
+        enforce: "pre",
+        use: ["source-map-loader"],
+      },
+      {
         test: /\.css$/,
         use: [
           {
@@ -38,6 +43,7 @@ module.exports = {
   plugins: [
     new HtmlWebPackPlugin({
       template: './src-js/index.html',
+      favicon: './images/favicon.svg',
     }),
   ],
   optimization: {
