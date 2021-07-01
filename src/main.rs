@@ -5,6 +5,7 @@ use std::path::Path;
 use std::convert::Infallible;
 use warp::{
     http::StatusCode,
+    http::Method,
     Filter, Rejection, Reply,
 };
 use serde::{Serialize, Deserialize};
@@ -353,10 +354,10 @@ async fn serve() {
         .and_then(move |hash: String| get_range("".to_string(), hash));
 
     let cors = warp::cors()
-        //.allow_any_origin()
         .allow_origins(vec!["https://randomsound.uk", "http://localhost:1338"])
-        .allow_methods(vec!["GET", "POST", "DELETE"])
-        .allow_headers(vec!["User-Agent", "Sec-Fetch-Mode", "Referer", "Origin", "Access-Control-Request-Method", "Access-Control-Request-Headers"]);
+        .allow_methods(&[Method::GET, Method::POST, Method::OPTIONS])
+        .allow_headers(vec!["Authorization", "Content-Type", "User-Agent"]);
+        //.allow_headers(vec!["Sec-Fetch-Mode", "Referer", "Origin", "Access-Control-Request-Method", "Access-Control-Request-Headers"]);
 
     let gets = warp::get().and(root.or(search).or(random).or(stream).or(download)).with(cors).recover(handle_rejection);
 
