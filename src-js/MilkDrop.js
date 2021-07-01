@@ -33,6 +33,16 @@ export default class Milkdrop extends React.Component {
       }
     );
 
+    /*
+    let analyser = this.props.context.createAnalyser();
+    analyser.fftSize = 2048;
+    analyser.smoothingTimeConstant = 0.0;
+
+    // Create the gain node for the volume control
+    let gainNode = this.props.context.createGain();
+
+    this.visualizer.connectAudio(analyser);
+    */
     this.visualizer.connectAudio(this.props.audio._node);
     this.visualizer.setRendererSize(this.props.width, this.props.height);
     this.loadRandomPreset();
