@@ -126,7 +126,7 @@ impl File {
                 self.id,
             ],
         ) {
-            Ok(_) => println!("ID: {}", uuid),
+            Ok(_) => (),
             Err(err) => println!("Update failed: {}", err),
         }
 
