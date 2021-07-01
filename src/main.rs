@@ -122,7 +122,7 @@ fn test_db() -> SQLiteResult<()> {
 }
 
 fn search_result_to_file(id: i64, path: String, file_name: String, file_ext: String, title: String, artist: String, album: String) -> SQLiteResult<File> {
-    let mut file = File {
+    let file = File {
         id: id,
         path: path,
         file_name: file_name,
@@ -131,8 +131,6 @@ fn search_result_to_file(id: i64, path: String, file_name: String, file_ext: Str
         artist: artist,
         title: title,
     };
-
-    file.get_unique_id();
 
     Ok(file)
 }
@@ -159,8 +157,10 @@ fn search_db(input: String) -> SQLiteResult<Vec<File>> {
 
     let mut files: Vec<File> = Vec::new();
 
-    for file in rows {
-        files.push(file?);
+    for result in rows {
+        let mut file = result.unwrap();
+        file.get_unique_id();
+        files.push(file);
     }
 
     Ok(files)
@@ -187,8 +187,10 @@ fn random_song() -> SQLiteResult<Vec<File>> {
 
     let mut files: Vec<File> = Vec::new();
 
-    for file in rows {
-        files.push(file?);
+    for result in rows {
+        let mut file = result.unwrap();
+        file.get_unique_id();
+        files.push(file);
     }
 
     Ok(files)
@@ -339,11 +341,15 @@ async fn serve() {
             warp::reply::json(&response)
         });
 
-    // domain.tld/stream/[anything]
+    // domain.tld/stream/[anything] (parses range headers)
     let stream = warp::path!("stream" / String)
         .and(filter_range())
         .and_then(move |hash: String, range_header: String| get_range(range_header, hash))
         .map(with_partial_content_status);
+
+    // domain.tld/stream/[anything] (when stream headers are missing)
+    let download = warp::path!("stream" / String)
+        .and_then(move |hash: String| get_range("".to_string(), hash));
 
     let cors = warp::cors()
         //.allow_any_origin()
@@ -351,7 +357,7 @@ async fn serve() {
         .allow_methods(vec!["GET", "POST", "DELETE"])
         .allow_headers(vec!["User-Agent", "Sec-Fetch-Mode", "Referer", "Origin", "Access-Control-Request-Method", "Access-Control-Request-Headers"]);
 
-    let gets = warp::get().and(root.or(search).or(random).or(stream)).with(cors).recover(handle_rejection);
+    let gets = warp::get().and(root.or(search).or(random).or(stream).or(download)).with(cors).recover(handle_rejection);
 
     warp::serve(gets)
         .run(([127, 0, 0, 1], 1337))
@@ -444,7 +450,6 @@ impl From<ParseIntError> for Error {
 }
 
 async fn internal_get_range(range_header: String, hash: String) -> Result<impl warp::Reply, Error> {
-    
     let path = get_path_from_hash(hash.clone());
     let mime = get_mime_from_hash(hash);
 
