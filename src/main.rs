@@ -96,9 +96,10 @@ fn get_files(directory: std::string::String) -> Result<(), walkdir::Error> {
 }
 
 fn test_db() -> SQLiteResult<()> {
-    println!("Query: SELECT id, path FROM files");
+    let query = "SELECT id, path, file_name, file_ext, album, artist, title FROM files LIMIT 0, 5";
+
     let conn = SQLite::connect();
-    let mut stmt = conn.prepare("SELECT id, path, file_name, file_ext, album, artist, title FROM files")?;
+    let mut stmt = conn.prepare(query)?;
     let file_iter = stmt.query_map(params![], |row| {
         Ok(File {
             id: row.get(0)?,
@@ -137,7 +138,7 @@ fn search_result_to_file(id: i64, path: String, file_name: String, file_ext: Str
 
 fn search_db(input: String) -> SQLiteResult<Vec<File>> {
     let query = "SELECT * FROM `search` WHERE `search` MATCH :input;";
-    println!("{}", query);
+
     let conn = SQLite::connect();
 
     let mut stmt = conn.prepare(query)?;
@@ -168,7 +169,7 @@ fn search_db(input: String) -> SQLiteResult<Vec<File>> {
 
 fn random_song() -> SQLiteResult<Vec<File>> {
     let query = "SELECT id, path, file_name, file_ext, title, artist, album FROM `files` WHERE `file_ext` = 'mp3' AND _ROWID_ >= (abs(random()) % (SELECT max(_ROWID_) FROM `files`)) LIMIT 1;";
-    println!("{}", query);
+
     let conn = SQLite::connect();
 
     let mut stmt = conn.prepare(query)?;
@@ -198,7 +199,7 @@ fn random_song() -> SQLiteResult<Vec<File>> {
 
 fn find_song_by_hash(input: String) -> SQLiteResult<Vec<File>> {
     let query = "SELECT id, path, file_name, file_ext, title, artist, album FROM `files` WHERE `id` IN (SELECT file FROM plays WHERE hash = :input) LIMIT 0, 1;";
-    println!("{}", query);
+
     let conn = SQLite::connect();
 
     let mut stmt = conn.prepare(query)?;
@@ -366,7 +367,7 @@ async fn serve() {
 
 async fn handle_rejection(err: Rejection) -> std::result::Result<impl Reply, Infallible> {
     let (code, message) = if err.is_not_found() {
-        eprintln!("unhandled error: {:?}", err);
+        eprintln!("Unhandled error 1: {:?}", err);
         (
             StatusCode::NOT_FOUND,
             "Not Found".to_string(),
@@ -374,7 +375,7 @@ async fn handle_rejection(err: Rejection) -> std::result::Result<impl Reply, Inf
     } else if err.find::<warp::reject::PayloadTooLarge>().is_some() {
         (StatusCode::BAD_REQUEST, "Payload too large".to_string())
     } else {
-        eprintln!("unhandled error: {:?}", err);
+        eprintln!("unhandled error 2: {:?}", err);
         (
             StatusCode::INTERNAL_SERVER_ERROR,
             "Internal Server Error".to_string(),
