@@ -78,7 +78,7 @@ impl SQLite {
         let f = BackupFile::new(&file_to_compress);
         f.compress_to_gz();
 
-        println!("Success.");
+        println!("Backup finished.");
 
         Ok(())
     }
@@ -96,7 +96,7 @@ impl SQLite {
         let backup = backup::Backup::new(&src, &mut dst)?;
         backup.run_to_completion(5, Duration::from_millis(0), Some(SQLite::db_backup_progress))?;
 
-        println!("Success.");
+        println!("Restored.");
 
         Ok(())
     }

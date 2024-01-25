@@ -145,7 +145,7 @@ fn search_db(input: String) -> SQLiteResult<Vec<File>> {
     let mut stmt = conn.prepare(query)?;
     //let mut stmt = conn.prepare("SELECT * FROM `files` where `artist` LIKE :query;")?;
 
-    let rows = stmt.query_and_then_named(&[(":input", &input)], |row| {
+    let rows = stmt.query_and_then(&[(":input", &input)], |row| {
         search_result_to_file(
             row.get(1)?, // id
             row.get(2)?, // path
@@ -205,7 +205,7 @@ fn find_song_by_hash(input: String) -> SQLiteResult<Vec<File>> {
 
     let mut stmt = conn.prepare(query)?;
 
-    let rows = stmt.query_and_then_named(&[(":input", &input)], |row| {
+    let rows = stmt.query_and_then(&[(":input", &input)], |row| {
         search_result_to_file(
             row.get(0)?, // id
             row.get(1)?, // path
@@ -362,7 +362,7 @@ async fn serve() {
     let gets = warp::get().and(root.or(search).or(random).or(stream).or(download)).with(cors).recover(handle_rejection);
 
     warp::serve(gets)
-        .run(([127, 0, 0, 1], 1337))
+        .run(([0, 0, 0, 0], 1337))
         .await;
 }
 
@@ -397,7 +397,7 @@ use tokio::io::{
     AsyncReadExt, AsyncSeekExt
 };
 use warp::{
-    http::HeaderValue, hyper::HeaderMap, reply::WithStatus
+    http::HeaderValue, hyper::HeaderMap, reply::WithStatus, hyper::Body
 };
 
 /// This function filters and extracts the "Range"-Header
@@ -475,7 +475,7 @@ async fn internal_get_range(range_header: String, hash: String) -> Result<impl w
             yield Ok(buffer) as Result<Vec<u8>, hyper::Error>;
         }
     };
-    let body = hyper::Body::wrap_stream(stream);
+    let body = Body::wrap_stream(stream);
     let mut response = warp::reply::Response::new(body);
     
     let headers = response.headers_mut();
