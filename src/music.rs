@@ -16,6 +16,7 @@ pub struct File {
     pub title: String,
     pub artist: String,
     pub album: String,
+    pub time: f64,
 }
 
 impl File {
@@ -36,6 +37,7 @@ impl File {
             title: "".to_string(),
             artist: "".to_string(),
             album: "".to_string(),
+            time: 0.0,
         };
 
         f.populate_tags();
@@ -55,6 +57,7 @@ impl File {
                 self.title,
                 self.artist,
                 self.album,
+                self.time,
             ],
         ) {
             Ok(_) => println!("."),
@@ -70,6 +73,7 @@ impl File {
                 self.title,
                 self.artist,
                 self.album,
+                self.time,
             ],
         ) {
             Ok(_) => println!("."),

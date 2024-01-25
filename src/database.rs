@@ -33,7 +33,8 @@ impl SQLite {
             file_ext TEXT NOT NULL,
             title     TEXT NOT NULL,
             artist    TEXT NOT NULL,
-            album     TEXT NOT NULL
+            album     TEXT NOT NULL,
+            time      TEXT NOT NULL
         );
 
         CREATE TABLE plays (

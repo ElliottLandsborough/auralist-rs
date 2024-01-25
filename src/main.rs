@@ -97,7 +97,7 @@ fn get_files(directory: std::string::String) -> Result<(), walkdir::Error> {
 }
 
 fn test_db() -> SQLiteResult<()> {
-    let query = "SELECT id, path, file_name, file_ext, album, artist, title FROM files LIMIT 0, 5";
+    let query = "SELECT id, path, file_name, file_ext, album, artist, title, time FROM files LIMIT 0, 5";
 
     let conn = SQLite::connect();
     let mut stmt = conn.prepare(query)?;
@@ -110,6 +110,7 @@ fn test_db() -> SQLiteResult<()> {
             album: row.get(4)?,
             artist: row.get(5)?,
             title: row.get(6)?,
+            time: row.get(7)?,
         })
     })?;
 
@@ -132,6 +133,7 @@ fn search_result_to_file(id: i64, path: String, file_name: String, file_ext: Str
         album: album,
         artist: artist,
         title: title,
+        time: 0.0,
     };
 
     Ok(file)
