@@ -60,19 +60,19 @@ fn index() {
 
     match SQLite::backup_to_gz() {
         Ok(file) => file,
-        Err(err) => println!("{}", err),
+        Err(err) => println!("Backup error: {}", err),
     };
 
     // Restore connection from db file
     match SQLite::restore_from_gz() {
         Ok(_) => println!("Success."),
-        Err(err) => println!("{}", err),
+        Err(err) => println!("Restore error: {}", err),
     }
 
     // Try to query restored db
     match test_db() {
         Ok(_) => println!("Success."),
-        Err(err) => println!("{}", err),
+        Err(err) => println!("Test error: {}", err),
     }
 }
 
@@ -100,7 +100,7 @@ fn get_files(directory: std::string::String) -> Result<(), walkdir::Error> {
 }
 
 fn test_db() -> SQLiteResult<()> {
-    let query = "SELECT id, path, file_name, file_ext, album, artist, title, time FROM files LIMIT 0, 5";
+    let query = "SELECT id, path, file_name, file_ext, album, artist, title, duration FROM files LIMIT 0, 5";
 
     let conn = SQLite::connect();
     let mut stmt = conn.prepare(query)?;

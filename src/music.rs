@@ -4,7 +4,6 @@ use std::path::Path;
 use serde::{Serialize, Deserialize};
 use uuid::Uuid;
 use std::time::{SystemTime, UNIX_EPOCH};
-//extern crate tree_magic;
 use lofty::{Accessor, AudioFile, Probe, TaggedFileExt, Tag};
 
 #[derive(Clone, Serialize, Deserialize, Debug)]

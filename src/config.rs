@@ -24,8 +24,9 @@ impl ConfigFile {
         conf.with_section(None::<String>)
             .set("encoding", "utf-8");
         conf.with_section(Some("Indexer"))
-            .set("directory_to_index", "/music/Music/Ringtones");
-            //.set("extensions_to_index", "*");
+            .set("directory_to_index", "/Users/elliott/projects/auralist-rs/Ringtones")
+            .set("directory_exclusions", "/Users/elliott/projects/auralist-rs/exlusions.txt")
+            .set("extensions_to_index", "flac,wav,mp3");
 
         conf.with_section(Some("System"))
             .set("db_file", "/home/elliott/auralist.sqlite3");
