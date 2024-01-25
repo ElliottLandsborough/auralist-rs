@@ -65,12 +65,12 @@ dependencies = [
  "flate2",
  "hyper 1.1.0",
  "id3",
+ "lofty",
  "mime_guess",
  "rusqlite",
  "rust-ini",
  "serde",
  "serde_json",
- "taglib",
  "tokio",
  "uuid",
  "walkdir",
@@ -576,6 +576,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "lofty"
+version = "0.18.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f75066eb1d25a7047fb2667edb410ae2592439ed81546f95c28b0a1c7d7d3818"
+dependencies = [
+ "byteorder",
+ "data-encoding",
+ "flate2",
+ "lofty_attr",
+ "log",
+ "ogg_pager",
+ "paste",
+]
+
+[[package]]
+name = "lofty_attr"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "764b60e1ddd07e5665a6a17636a95cd7d8f3b86c73503a69c32979d05f72f3cf"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "log"
 version = "0.4.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -661,6 +687,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "ogg_pager"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c949d63b387b25c332f6e39d1762dd4b405008289dd7681f02c258b1294653ca"
+dependencies = [
+ "byteorder",
+]
+
+[[package]]
 name = "once_cell"
 version = "1.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -698,6 +733,12 @@ dependencies = [
  "smallvec",
  "windows-targets",
 ]
+
+[[package]]
+name = "paste"
+version = "1.0.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "de3145af08024dea9fa9914f381a17b8fc6034dfb00f3a84013f7ff43f29ed4c"
 
 [[package]]
 name = "percent-encoding"
@@ -975,25 +1016,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "unicode-ident",
-]
-
-[[package]]
-name = "taglib"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b89f5ef37e426deffeed459ea78a564bbe85baf6a9b023a69437655b46ad2013"
-dependencies = [
- "libc",
- "taglib-sys",
-]
-
-[[package]]
-name = "taglib-sys"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9e20ea22a603f1e8ccea16694cf8e8e3a192e5d6d6bb41d6e86dcbf3680d2a4e"
-dependencies = [
- "libc",
 ]
 
 [[package]]

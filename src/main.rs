@@ -89,7 +89,10 @@ fn get_files(directory: std::string::String) -> Result<(), walkdir::Error> {
 
         if !path.is_dir() {
             let f = File::populate_from_path(&path);
-            f.save_to_database();
+            // todo: take as args in conf? or over command line? env vars?
+            if f.file_ext == "mp3" || f.file_ext == "flac" { // renember to not use wav, its too big! 
+                f.save_to_database();
+            }
         }
     }
 
@@ -110,7 +113,7 @@ fn test_db() -> SQLiteResult<()> {
             album: row.get(4)?,
             artist: row.get(5)?,
             title: row.get(6)?,
-            time: row.get(7)?,
+            duration: row.get(7)?,
         })
     })?;
 
@@ -124,7 +127,7 @@ fn test_db() -> SQLiteResult<()> {
     Ok(())
 }
 
-fn search_result_to_file(id: i64, path: String, file_name: String, file_ext: String, title: String, artist: String, album: String) -> SQLiteResult<File> {
+fn search_result_to_file(id: i64, path: String, file_name: String, file_ext: String, title: String, artist: String, album: String, duration: u64) -> SQLiteResult<File> {
     let file = File {
         id: id,
         path: path,
@@ -133,7 +136,7 @@ fn search_result_to_file(id: i64, path: String, file_name: String, file_ext: Str
         album: album,
         artist: artist,
         title: title,
-        time: 0.0,
+        duration: duration,
     };
 
     Ok(file)
@@ -156,6 +159,7 @@ fn search_db(input: String) -> SQLiteResult<Vec<File>> {
             row.get(5)?, // title
             row.get(6)?, // artist
             row.get(7)?, // album
+            row.get(8)?, // album
         )
     })?;
 
@@ -171,7 +175,7 @@ fn search_db(input: String) -> SQLiteResult<Vec<File>> {
 }
 
 fn random_song() -> SQLiteResult<Vec<File>> {
-    let query = "SELECT id, path, file_name, file_ext, title, artist, album FROM `files` WHERE `file_ext` = 'mp3' AND _ROWID_ >= (abs(random()) % (SELECT max(_ROWID_) FROM `files`)) LIMIT 1;";
+    let query = "SELECT id, path, file_name, file_ext, title, artist, album, duration FROM `files` WHERE `file_ext` IN ('mp3', 'flac') AND _ROWID_ >= (abs(random()) % (SELECT max(_ROWID_) FROM `files`)) LIMIT 1;";
 
     let conn = SQLite::connect();
 
@@ -186,6 +190,7 @@ fn random_song() -> SQLiteResult<Vec<File>> {
             row.get(4)?, // title
             row.get(5)?, // artist
             row.get(6)?, // album
+            row.get(7)?, // duration
         )
     })?;
 
@@ -201,7 +206,7 @@ fn random_song() -> SQLiteResult<Vec<File>> {
 }
 
 fn find_song_by_hash(input: String) -> SQLiteResult<Vec<File>> {
-    let query = "SELECT id, path, file_name, file_ext, title, artist, album FROM `files` WHERE `id` IN (SELECT file FROM plays WHERE hash = :input) LIMIT 0, 1;";
+    let query = "SELECT id, path, file_name, file_ext, title, artist, album, duration FROM `files` WHERE `id` IN (SELECT file FROM plays WHERE hash = :input) LIMIT 0, 1;";
 
     let conn = SQLite::connect();
 
@@ -216,6 +221,7 @@ fn find_song_by_hash(input: String) -> SQLiteResult<Vec<File>> {
             row.get(4)?, // title
             row.get(5)?, // artist
             row.get(6)?, // album
+            row.get(7)?, // duration
         )
     })?;
 

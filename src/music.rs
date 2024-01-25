@@ -1,11 +1,11 @@
 use rusqlite::params;
 use crate::database::SQLite;
 use std::path::Path;
-extern crate taglib;
 use serde::{Serialize, Deserialize};
 use uuid::Uuid;
 use std::time::{SystemTime, UNIX_EPOCH};
 //extern crate tree_magic;
+use lofty::{Accessor, AudioFile, Probe, TaggedFileExt, Tag};
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct File {
@@ -16,13 +16,15 @@ pub struct File {
     pub title: String,
     pub artist: String,
     pub album: String,
-    pub time: f64,
+    pub duration: u64,
 }
 
 impl File {
     pub fn populate_from_path(path: &Path) -> File {
         let path_string = path.to_str().unwrap().to_string();
         let file_name = String::from(path.file_name().unwrap().to_string_lossy());
+
+        println!("--- File: {} ---", file_name);
 
         let file_ext = match path.extension() {
             Some(value) => String::from(value.to_string_lossy()),
@@ -33,14 +35,16 @@ impl File {
             id: 0,
             path: path_string,
             file_name: file_name,
-            file_ext: file_ext,
+            file_ext: file_ext.clone(),
             title: "".to_string(),
             artist: "".to_string(),
             album: "".to_string(),
-            time: 0.0,
+            duration: 0,
         };
 
-        f.populate_tags();
+        if file_ext == "mp3" || file_ext == "flac" {
+            f.populate_lofty();
+        }
 
         f
     }
@@ -49,7 +53,7 @@ impl File {
         let conn = SQLite::connect();
 
         match conn.execute(
-            "INSERT INTO files (path, file_name, file_ext, title, artist, album) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            "INSERT INTO files (path, file_name, file_ext, title, artist, album, duration) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
             params![
                 self.path,
                 self.file_name,
@@ -57,10 +61,10 @@ impl File {
                 self.title,
                 self.artist,
                 self.album,
-                self.time,
+                self.duration,
             ],
         ) {
-            Ok(_) => println!("."),
+            Ok(_) => println!("Inserting into files..."),
             Err(err) => println!("Update failed: {}", err),
         }
 
@@ -73,43 +77,50 @@ impl File {
                 self.title,
                 self.artist,
                 self.album,
-                self.time,
             ],
         ) {
-            Ok(_) => println!("."),
+            Ok(_) => println!("Inserting into search..."),
             Err(err) => println!("Update failed: {}", err),
         }
     }
 
-    pub fn populate_tags(&mut self) {
-        // Fallback to inferring mime type?
+    pub fn populate_lofty(&mut self) {
         let path: &Path = Path::new(&self.path);
-        //let mime = tree_magic::from_filepath(path);
-        //println!("Mime type: {}", mime);
+        let potentially_tagged_file = Probe::open(path)
+            .expect("ERROR: Bad path provided!")
+            .read()
+            .expect("ERROR: Failed to read file!");
 
-        match taglib::File::new(path) {
-            Ok(file) => {
-                match file.tag() {
-                    Ok(t) => {
-                        self.title = t.title().unwrap_or_default();
-                        self.artist = t.artist().unwrap_or_default();
-                        self.album = t.album().unwrap_or_default();
-                    },
-                    Err(_) => ()
-                }
-                match file.audioproperties() {
-                    Ok(_p) => {
-                        //self.length = _p.length(); // in seconds
-                    }
-                    Err(e) => {
-                        println!("No available audio properties for {} (error: {:?})", path.display(), e);
-                    }
+        let properties = potentially_tagged_file.properties();
+
+        // Get the duration
+        let duration = properties.duration();
+        self.duration = duration.as_secs();
+        println!("Duration (s): {}", self.duration);
+
+        // Try to get the tag info
+        match potentially_tagged_file.primary_tag() {
+            Some(primary_tag) => self.fill_tags(primary_tag),
+            // If the "primary" tag doesn't exist, we just grab the
+            // first tag we can find. Realistically, a tag reader would likely
+            // iterate through the tags to find a suitable one.
+            None => {
+                match potentially_tagged_file.first_tag() {
+                    Some(next_tag) => self.fill_tags(next_tag),
+                    None => ()
                 }
             },
-            Err(e) => {
-                println!("Invalid file {} (error: {:?})", path.display(), e);
-            }
         };
+    }
+
+    pub fn fill_tags(&mut self, tag: &Tag) {
+        println!("--- Tag Information ---");
+        println!("Title: {}", tag.title().as_deref().unwrap_or(""));
+        println!("Artist: {}", tag.artist().as_deref().unwrap_or(""));
+        println!("Album: {}", tag.album().as_deref().unwrap_or(""));
+        self.title = tag.title().as_deref().unwrap_or("").to_string();
+        self.artist = tag.artist().as_deref().unwrap_or("").to_string();
+        self.album = tag.title().as_deref().unwrap_or("").to_string();
     }
 
     pub fn get_unique_id(&mut self) {

@@ -30,12 +30,14 @@ impl SQLite {
             id        INTEGER PRIMARY KEY,
             path      TEXT NOT NULL,
             file_name TEXT NOT NULL,
-            file_ext TEXT NOT NULL,
+            file_ext  TEXT NOT NULL,
             title     TEXT NOT NULL,
             artist    TEXT NOT NULL,
             album     TEXT NOT NULL,
-            time      TEXT NOT NULL
+            duration  SMALLINT
         );
+
+        CREATE INDEX duration ON files (duration);
 
         CREATE TABLE plays (
             id        INTEGER PRIMARY KEY,

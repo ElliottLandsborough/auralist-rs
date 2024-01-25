@@ -51,13 +51,11 @@ docker build -t auralist:latest .
 
 docker run -p 3000:5000 -e INSTANCE_NAME=docker1 -d rust-warp-docker
 
-
-- file length needs to be in db
 - async worker process to index all changes all the time
 - page with stats
 - need to see distribution of song length
 - button to press when song fails
 - better ui, sort out milkdrop, it sucks
-- possible ai categorisation
+- possible api/ai based categorisation
 - stream the videos
 - browsable ui
