@@ -1,10 +1,10 @@
-use rusqlite::params;
 use crate::database::SQLite;
+use lofty::{Accessor, AudioFile, Probe, Tag, TaggedFileExt};
+use rusqlite::params;
+use serde::{Deserialize, Serialize};
 use std::path::Path;
-use serde::{Serialize, Deserialize};
-use uuid::Uuid;
 use std::time::{SystemTime, UNIX_EPOCH};
-use lofty::{Accessor, AudioFile, Probe, TaggedFileExt, Tag};
+use uuid::Uuid;
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct File {
@@ -27,7 +27,7 @@ impl File {
 
         let file_ext = match path.extension() {
             Some(value) => String::from(value.to_string_lossy()),
-            None => String::from("")
+            None => String::from(""),
         };
 
         let mut f = File {
@@ -103,11 +103,9 @@ impl File {
             // If the "primary" tag doesn't exist, we just grab the
             // first tag we can find. Realistically, a tag reader would likely
             // iterate through the tags to find a suitable one.
-            None => {
-                match potentially_tagged_file.first_tag() {
-                    Some(next_tag) => self.fill_tags(next_tag),
-                    None => ()
-                }
+            None => match potentially_tagged_file.first_tag() {
+                Some(next_tag) => self.fill_tags(next_tag),
+                None => (),
             },
         };
     }
@@ -134,11 +132,7 @@ impl File {
 
         match conn.execute(
             "INSERT INTO plays (hash, time, file) VALUES (?1, ?2, ?3)",
-            params![
-                uuid,
-                now,
-                self.id,
-            ],
+            params![uuid, now, self.id,],
         ) {
             Ok(_) => (),
             Err(err) => println!("Update failed: {}", err),

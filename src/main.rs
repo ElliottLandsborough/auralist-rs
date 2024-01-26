@@ -1,14 +1,10 @@
-use std::{env};
 use rusqlite::{params, Result as SQLiteResult};
-use walkdir::WalkDir;
-use std::path::Path;
+use serde::{Deserialize, Serialize};
 use std::convert::Infallible;
-use warp::{
-    http::StatusCode,
-    http::Method,
-    Filter, Rejection, Reply,
-};
-use serde::{Serialize, Deserialize};
+use std::env;
+use std::path::Path;
+use walkdir::WalkDir;
+use warp::{http::Method, http::StatusCode, Filter, Rejection, Reply};
 
 mod database;
 mod dbbackup;
@@ -34,7 +30,7 @@ fn main() {
             "init" => config.create(),
             "index" => index(),
             "serve" => serve(),
-            _ => println!("Please choose a command e.g 'init' or 'index'")
+            _ => println!("Please choose a command e.g 'init' or 'index'"),
         }
     }
 }
@@ -45,7 +41,10 @@ fn index() {
     let conf_file = "./conf.ini";
 
     if !Path::new(conf_file).exists() {
-        println!("Config file `{:?}` missing. Please run `init` first", conf_file);
+        println!(
+            "Config file `{:?}` missing. Please run `init` first",
+            conf_file
+        );
 
         return;
     }
@@ -53,15 +52,23 @@ fn index() {
     let directory_to_index = Settings::get("Indexer", "directory_to_index");
 
     if !Path::new(&directory_to_index).exists() {
-        println!("Directory set in `conf.ini` missing: `{:?}`", &directory_to_index);
+        println!(
+            "Directory set in `conf.ini` missing: `{:?}`",
+            &directory_to_index
+        );
 
         return;
     }
 
     let directory_exclusions_file_path = Settings::get("Indexer", "directory_exclusions");
 
-    if directory_exclusions_file_path.len() > 0 && !Path::new(&directory_exclusions_file_path).exists() {
-        println!("Exclusions file is missing: `{:?}`", &directory_exclusions_file_path);
+    if directory_exclusions_file_path.len() > 0
+        && !Path::new(&directory_exclusions_file_path).exists()
+    {
+        println!(
+            "Exclusions file is missing: `{:?}`",
+            &directory_exclusions_file_path
+        );
 
         return;
     }
@@ -71,7 +78,11 @@ fn index() {
     let binding = Settings::get("Indexer", "extensions_to_index");
     let extensions_to_index: Vec<&str> = binding.split(",").collect();
 
-    match get_files(String::from(&directory_to_index), directory_exclusions, extensions_to_index) {
+    match get_files(
+        String::from(&directory_to_index),
+        directory_exclusions,
+        extensions_to_index,
+    ) {
         Ok(_) => println!("Finished getting files."),
         Err(err) => println!("{}", err),
     }
@@ -102,7 +113,11 @@ fn lines_from_file(filename: impl AsRef<Path>) -> Vec<String> {
         .collect()
 }
 
-fn get_files(directory: std::string::String, exclusions: Vec<std::string::String>, extensions: Vec<&str>) -> Result<(), walkdir::Error> {
+fn get_files(
+    directory: std::string::String,
+    exclusions: Vec<std::string::String>,
+    extensions: Vec<&str>,
+) -> Result<(), walkdir::Error> {
     println!("Saving files to db...");
 
     'entries: for entry in WalkDir::new(directory) {
@@ -119,14 +134,15 @@ fn get_files(directory: std::string::String, exclusions: Vec<std::string::String
             if path.starts_with(exclusion) {
                 println!("Excluding: `{:?}`", &path);
                 println!("Based on rule: `{:?}`", &exclusion);
-                continue 'entries
+                continue 'entries;
             }
-        } 
+        }
 
         if !path.is_dir() {
             let f = File::populate_from_path(&path, extensions.clone());
             // todo: add all extensions that lofty supports, exts are now specified in conf file
-            if f.file_ext == "mp3" || f.file_ext == "flac" { // renember to not use wav, its too big! 
+            if f.file_ext == "mp3" || f.file_ext == "flac" {
+                // renember to not use wav, its too big!
                 f.save_to_database();
             }
         }
@@ -163,7 +179,16 @@ fn test_db() -> SQLiteResult<()> {
     Ok(())
 }
 
-fn search_result_to_file(id: i64, path: String, file_name: String, file_ext: String, title: String, artist: String, album: String, duration: u64) -> SQLiteResult<File> {
+fn search_result_to_file(
+    id: i64,
+    path: String,
+    file_name: String,
+    file_ext: String,
+    title: String,
+    artist: String,
+    album: String,
+    duration: u64,
+) -> SQLiteResult<File> {
     let file = File {
         id: id,
         path: path,
@@ -275,7 +300,7 @@ fn first_song_from_vec(files: Vec<File>) -> Result<File, &'static str> {
         // Restore connection from db file
         let file = files.into_iter().nth(0).unwrap();
 
-        return Ok(file)
+        return Ok(file);
     }
 
     Err("No files in supplied vector")
@@ -341,51 +366,48 @@ async fn serve() {
     }
 
     // domain.tld
-    let root = warp::path::end()
-        .map(|| {
-            let response = EmptyResponse {
-                status: 200,
-                message: "OK".to_string(),
-            };
+    let root = warp::path::end().map(|| {
+        let response = EmptyResponse {
+            status: 200,
+            message: "OK".to_string(),
+        };
 
-            warp::reply::json(&response)
-        });
-    
+        warp::reply::json(&response)
+    });
+
     // domain.tld/search/[anything]
-    let search = warp::path!("search" / String)
-        .map(|query| {
-            let files = match search_db(query) {
-                Ok(files) => files,
-                Err(error) => panic!("Problem with search: {:?}", error),
-            };
+    let search = warp::path!("search" / String).map(|query| {
+        let files = match search_db(query) {
+            Ok(files) => files,
+            Err(error) => panic!("Problem with search: {:?}", error),
+        };
 
-            let response = FileResponse {
-                status: 200,
-                message: "OK".to_string(),
-                count: files.len(),
-                data: files
-            };
+        let response = FileResponse {
+            status: 200,
+            message: "OK".to_string(),
+            count: files.len(),
+            data: files,
+        };
 
-            warp::reply::json(&response)
-        });
+        warp::reply::json(&response)
+    });
 
     // domain.tld/random
-    let random = warp::path!("random")
-        .map(|| {
-            let files = match random_song() {
-                Ok(files) => files,
-                Err(error) => panic!("Problem with search: {:?}", error),
-            };
+    let random = warp::path!("random").map(|| {
+        let files = match random_song() {
+            Ok(files) => files,
+            Err(error) => panic!("Problem with search: {:?}", error),
+        };
 
-            let response = FileResponse {
-                status: 200,
-                message: "OK".to_string(),
-                count: files.len(),
-                data: files
-            };
+        let response = FileResponse {
+            status: 200,
+            message: "OK".to_string(),
+            count: files.len(),
+            data: files,
+        };
 
-            warp::reply::json(&response)
-        });
+        warp::reply::json(&response)
+    });
 
     // domain.tld/stream/[anything] (parses range headers)
     let stream = warp::path!("stream" / String)
@@ -401,26 +423,21 @@ async fn serve() {
         .allow_origins(vec!["https://randomsound.uk", "http://localhost:1338"])
         .allow_methods(&[Method::GET, Method::POST, Method::OPTIONS])
         .allow_headers(vec!["Authorization", "Content-Type", "User-Agent"]);
-        //.allow_headers(vec!["Sec-Fetch-Mode", "Referer", "Origin", "Access-Control-Request-Method", "Access-Control-Request-Headers"]);
+    //.allow_headers(vec!["Sec-Fetch-Mode", "Referer", "Origin", "Access-Control-Request-Method", "Access-Control-Request-Headers"]);
 
-    let gets = warp::get().and(root.or(search).or(random).or(stream).or(download)).with(cors).recover(handle_rejection);
+    let gets = warp::get()
+        .and(root.or(search).or(random).or(stream).or(download))
+        .with(cors)
+        .recover(handle_rejection);
 
-    warp::serve(gets)
-        .run(([0, 0, 0, 0], 1337))
-        .await;
+    warp::serve(gets).run(([0, 0, 0, 0], 1337)).await;
 }
 
 async fn handle_rejection(err: Rejection) -> std::result::Result<impl Reply, Infallible> {
     let (code, message) = if err.is_not_found() {
-        (
-            StatusCode::NOT_FOUND,
-            "Not Found".to_string()
-        )
+        (StatusCode::NOT_FOUND, "Not Found".to_string())
     } else if err.find::<warp::reject::PayloadTooLarge>().is_some() {
-        (
-            StatusCode::BAD_REQUEST,
-            "Payload too large".to_string()
-        )
+        (StatusCode::BAD_REQUEST, "Payload too large".to_string())
     } else {
         eprintln!("unhandled error: {:?}", err);
         (
@@ -434,15 +451,9 @@ async fn handle_rejection(err: Rejection) -> std::result::Result<impl Reply, Inf
 
 // borrowed from warp-range
 use async_stream::stream;
-use std::{
-    cmp::min, io::SeekFrom, num::ParseIntError
-};
-use tokio::io::{
-    AsyncReadExt, AsyncSeekExt
-};
-use warp::{
-    http::HeaderValue, hyper::HeaderMap, reply::WithStatus, hyper::Body
-};
+use std::{cmp::min, io::SeekFrom, num::ParseIntError};
+use tokio::io::{AsyncReadExt, AsyncSeekExt};
+use warp::{http::HeaderValue, hyper::Body, hyper::HeaderMap, reply::WithStatus};
 
 /// This function filters and extracts the "Range"-Header
 pub fn filter_range() -> impl Filter<Extract = (String,), Error = Rejection> + Copy {
@@ -459,41 +470,51 @@ pub async fn get_range(range_header: String, hash: String) -> Result<impl warp::
 
 /// This function adds the "206 Partial Content" header
 pub fn with_partial_content_status<T: Reply>(reply: T) -> WithStatus<T> {
-    warp::reply::with_status(reply, StatusCode::PARTIAL_CONTENT) 
+    warp::reply::with_status(reply, StatusCode::PARTIAL_CONTENT)
 }
 
-fn get_range_params(range: &str, size: u64)->Result<(u64, u64), Error> {
+fn get_range_params(range: &str, size: u64) -> Result<(u64, u64), Error> {
     let range: Vec<String> = range
         .replace("bytes=", "")
         .split("-")
-        .filter_map(|n| if n.len() > 0 {Some(n.to_string())} else {None})
+        .filter_map(|n| {
+            if n.len() > 0 {
+                Some(n.to_string())
+            } else {
+                None
+            }
+        })
         .collect();
-    let start = if range.len() > 0 { 
-        range[0].parse::<u64>()? 
-    } else { 
-        0 
+    let start = if range.len() > 0 {
+        range[0].parse::<u64>()?
+    } else {
+        0
     };
     let end = if range.len() > 1 {
         range[1].parse::<u64>()?
     } else {
-        size-1 
+        size - 1
     };
     Ok((start, end))
 }
 
 #[derive(Debug)]
 struct Error {
-    message: String
+    message: String,
 }
 
 impl From<std::io::Error> for Error {
     fn from(err: std::io::Error) -> Self {
-        Error { message: err.to_string() }
+        Error {
+            message: err.to_string(),
+        }
     }
 }
 impl From<ParseIntError> for Error {
     fn from(err: ParseIntError) -> Self {
-        Error { message: err.to_string() }
+        Error {
+            message: err.to_string(),
+        }
     }
 }
 
@@ -521,13 +542,16 @@ async fn internal_get_range(range_header: String, hash: String) -> Result<impl w
     };
     let body = Body::wrap_stream(stream);
     let mut response = warp::reply::Response::new(body);
-    
+
     let headers = response.headers_mut();
     let mut header_map = HeaderMap::new();
     header_map.insert("Content-Type", HeaderValue::from_str(&mime).unwrap());
     header_map.insert("Accept-Ranges", HeaderValue::from_str("bytes").unwrap());
-    header_map.insert("Content-Range", HeaderValue::from_str(&format!("bytes {}-{}/{}", start_range, end_range, size)).unwrap());
+    header_map.insert(
+        "Content-Range",
+        HeaderValue::from_str(&format!("bytes {}-{}/{}", start_range, end_range, size)).unwrap(),
+    );
     header_map.insert("Content-Length", HeaderValue::from(byte_count));
     headers.extend(header_map);
-    Ok (response)
+    Ok(response)
 }
