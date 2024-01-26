@@ -19,7 +19,7 @@ pub struct File {
 }
 
 impl File {
-    pub fn populate_from_path(path: &Path) -> File {
+    pub fn populate_from_path(path: &Path, extensions: Vec<&str>) -> File {
         let path_string = path.to_str().unwrap().to_string();
         let file_name = String::from(path.file_name().unwrap().to_string_lossy());
 
@@ -41,7 +41,7 @@ impl File {
             duration: 0,
         };
 
-        if file_ext == "mp3" || file_ext == "flac" {
+        if extensions.contains(&&file_ext.as_str()) {
             f.populate_lofty();
         }
 

@@ -5,3 +5,4 @@ auralist.sq*
 node_modules
 
 files/*
+exclusions.txt

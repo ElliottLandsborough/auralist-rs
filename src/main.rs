@@ -18,6 +18,11 @@ use crate::config::{ConfigFile, Settings};
 mod music;
 use crate::music::File;
 
+use std::{
+    fs::File as StdFsFile,
+    io::{prelude::*, BufReader},
+};
+
 fn main() {
     let args: Vec<String> = env::args().collect();
     let config = ConfigFile::new();
@@ -53,8 +58,21 @@ fn index() {
         return;
     }
 
-    match get_files(String::from(&directory_to_index)) {
-        Ok(_) => println!("Success."),
+    let directory_exclusions_file_path = Settings::get("Indexer", "directory_exclusions");
+
+    if directory_exclusions_file_path.len() > 0 && !Path::new(&directory_exclusions_file_path).exists() {
+        println!("Exclusions file is missing: `{:?}`", &directory_exclusions_file_path);
+
+        return;
+    }
+
+    let directory_exclusions = lines_from_file(directory_exclusions_file_path);
+
+    let binding = Settings::get("Indexer", "extensions_to_index");
+    let extensions_to_index: Vec<&str> = binding.split(",").collect();
+
+    match get_files(String::from(&directory_to_index), directory_exclusions, extensions_to_index) {
+        Ok(_) => println!("Finished getting files."),
         Err(err) => println!("{}", err),
     }
 
@@ -76,10 +94,18 @@ fn index() {
     }
 }
 
-fn get_files(directory: std::string::String) -> Result<(), walkdir::Error> {
+fn lines_from_file(filename: impl AsRef<Path>) -> Vec<String> {
+    let file = StdFsFile::open(filename).expect("no such file");
+    let buf = BufReader::new(file);
+    buf.lines()
+        .map(|l| l.expect("Could not parse line"))
+        .collect()
+}
+
+fn get_files(directory: std::string::String, exclusions: Vec<std::string::String>, extensions: Vec<&str>) -> Result<(), walkdir::Error> {
     println!("Saving files to db...");
 
-    for entry in WalkDir::new(directory) {
+    'entries: for entry in WalkDir::new(directory) {
         let entry = match entry {
             Ok(file) => file,
             Err(error) => panic!("Problem with file: {:?}", error),
@@ -87,9 +113,19 @@ fn get_files(directory: std::string::String) -> Result<(), walkdir::Error> {
 
         let path = entry.path();
 
+        println!("+ PATH: `{:?}`", &path);
+
+        for exclusion in &exclusions {
+            if path.starts_with(exclusion) {
+                println!("Excluding: `{:?}`", &path);
+                println!("Based on rule: `{:?}`", &exclusion);
+                continue 'entries
+            }
+        } 
+
         if !path.is_dir() {
-            let f = File::populate_from_path(&path);
-            // todo: take as args in conf? or over command line? env vars?
+            let f = File::populate_from_path(&path, extensions.clone());
+            // todo: add all extensions that lofty supports, exts are now specified in conf file
             if f.file_ext == "mp3" || f.file_ext == "flac" { // renember to not use wav, its too big! 
                 f.save_to_database();
             }

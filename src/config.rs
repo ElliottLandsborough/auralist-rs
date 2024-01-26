@@ -24,12 +24,12 @@ impl ConfigFile {
         conf.with_section(None::<String>)
             .set("encoding", "utf-8");
         conf.with_section(Some("Indexer"))
-            .set("directory_to_index", "/Users/elliott/projects/auralist-rs/Ringtones")
-            .set("directory_exclusions", "/Users/elliott/projects/auralist-rs/exlusions.txt")
+            .set("directory_to_index", "./files")
+            .set("directory_exclusions", "./exclusions.txt")
             .set("extensions_to_index", "flac,wav,mp3");
 
         conf.with_section(Some("System"))
-            .set("db_file", "/home/elliott/auralist.sqlite3");
+            .set("db_file", "./auralist.sqlite3");
         
         let w = conf.write_to_file(&self.path.to_string());
 
