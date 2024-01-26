@@ -49,7 +49,7 @@ sudo mount -t cifs -o ro,guest,vers=1.0 //192.168.1.55/music /music
 
 - async worker process to index all changes all the time
 - page with stats
-- need to see distribution of song length
+- need to see distribution of song lengths
 - button to press when song fails
 - better ui, sort out milkdrop, it sucks
 - possible api/ai based categorisation
