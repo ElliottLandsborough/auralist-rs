@@ -1,7 +1,7 @@
 default: buildrun
 
 clean:
-	docker stop auralist
+	docker kill auralist || true
 	docker system prune -a -f
 
 index:
