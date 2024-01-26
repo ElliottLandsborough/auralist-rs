@@ -30,18 +30,18 @@ impl File {
             None => String::from(""),
         };
 
-        if extensions.contains(&&file_ext.as_str()) {
-            let mut f = File {
-                id: 0,
-                path: path_string,
-                file_name: file_name,
-                file_ext: file_ext.clone(),
-                title: "".to_string(),
-                artist: "".to_string(),
-                album: "".to_string(),
-                duration: 0,
-            };
+        let mut f = File {
+            id: 0,
+            path: path_string,
+            file_name: file_name,
+            file_ext: file_ext.clone(),
+            title: "".to_string(),
+            artist: "".to_string(),
+            album: "".to_string(),
+            duration: 0,
+        };
 
+        if extensions.contains(&&file_ext.as_str()) {
             // https://docs.rs/lofty/latest/lofty/#supported-formats
             if file_ext == "mp3" || file_ext == "flac" {
                 f.populate_lofty();
