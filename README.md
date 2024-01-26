@@ -42,3 +42,17 @@ Serve
 ```
 $ cargo run serve
 ```
+
+```
+sudo mount -t cifs -o ro,guest,vers=1.0 //192.168.769.857/music /music
+```
+
+- async worker process to index all changes all the time
+- page with stats
+- need to see distribution of song lengths
+- button to press when song fails
+- better ui, sort out milkdrop, it sucks
+- possible api/ai based categorisation
+- stream the videos
+- browsable ui
+- better docs

@@ -3,3 +3,6 @@ conf.ini
 auralist.sq*
 .DS_store
 node_modules
+
+files/*
+exclusions.txt

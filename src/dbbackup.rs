@@ -1,6 +1,6 @@
-use flate2::Compression;
-use flate2::bufread::GzEncoder;
 use flate2::bufread::GzDecoder;
+use flate2::bufread::GzEncoder;
+use flate2::Compression;
 use std::fs::File as FsFile;
 use std::io::BufReader;
 
@@ -24,7 +24,7 @@ impl BackupFile {
         let mut f = FsFile::create(destination).expect("Unable to create file");
         std::io::copy(&mut gz, &mut f).expect("Unable to copy data");
     }
-    
+
     pub fn decompress_from_gz(&self) {
         let source = self.path.clone() + ".gz";
         println!("Decompressing `{}`...", source);
