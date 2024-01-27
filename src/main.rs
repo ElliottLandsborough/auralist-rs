@@ -1,6 +1,6 @@
 use rusqlite::{params, Result as SQLiteResult};
 use serde::{Deserialize, Serialize};
-use std::convert::{Infallible, TryInto};
+use std::convert::Infallible;
 use std::env;
 use std::path::Path;
 use walkdir::WalkDir;
@@ -374,8 +374,6 @@ async fn serve() {
     // domain.tld/favicon.svg
     let favicon = warp::path!("favicon.svg").and(warp::fs::dir("static/favicon.svg"));
 
-    let assets = warp::path!("static").and(warp::fs::dir("static"));
-
     // domain.tld/search/[anything]
     let search = warp::path!("search" / String).map(|query| {
         let files = match search_db(query) {
@@ -431,7 +429,6 @@ async fn serve() {
             default
                 .or(favicon)
                 .or(bundle)
-                .or(assets)
                 .or(search)
                 .or(random)
                 .or(stream)
@@ -450,9 +447,8 @@ async fn handle_rejection(err: Rejection) -> std::result::Result<impl Reply, Inf
         (StatusCode::BAD_REQUEST, "Payload too large".to_string())
     } else {
         eprintln!(
-            "unhandled error: {:?}. working dir: {:?}",
-            err,
-            env::current_dir()
+            "unhandled error: {:?}",
+            err
         );
         (
             StatusCode::INTERNAL_SERVER_ERROR,
