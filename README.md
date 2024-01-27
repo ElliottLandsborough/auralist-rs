@@ -51,7 +51,7 @@ make reset
 sudo mount -t cifs -o ro,guest,vers=1.0 //192.168.769.857/music /files
 ```
 ### Todo
-- fix milkdrop
+- make milkdrop respond properly
 - async worker process to index all changes all the time
 - page with stats
 - need to see distribution of song lengths

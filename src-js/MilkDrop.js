@@ -33,17 +33,12 @@ export default class Milkdrop extends React.Component {
       }
     );
 
-    /*
-    let analyser = this.props.context.createAnalyser();
-    analyser.fftSize = 2048;
-    analyser.smoothingTimeConstant = 0.0;
-
-    // Create the gain node for the volume control
-    let gainNode = this.props.context.createGain();
-
-    this.visualizer.connectAudio(analyser);
-    */
-    this.visualizer.connectAudio(this.props.audio._node);
+    this.props.analyser.fftSize = 2048;
+    //this.props.analyser.smoothingTimeConstant = 0.8;
+    //this.props.analyser.minDecibels = -60;
+    //this.props.analyser.maxDecibels = -10;
+    //this.props.analyser.smoothingTimeConstant = 0.8;
+    this.visualizer.connectAudio(this.props.analyser);
     this.visualizer.setRendererSize(this.props.width, this.props.height);
     this.loadRandomPreset();
 
@@ -61,7 +56,7 @@ export default class Milkdrop extends React.Component {
   loadRandomPreset() {
     const preset = this.randomPreset();
     // "Flexi - infused with the spiral" is good...
-    this.visualizer.loadPreset(preset.item, 2);
+    this.visualizer.loadPreset(preset.item, 1);
     this.setState({preset: preset});
   }
 

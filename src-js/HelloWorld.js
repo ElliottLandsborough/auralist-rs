@@ -21,6 +21,7 @@ class HelloWorld extends React.Component {
       album: false,
       file: false,
       playing: false,
+      analyser: false,
       context: false,
       audio: false,
       soundID: false,
@@ -52,10 +53,19 @@ class HelloWorld extends React.Component {
   reportPlayState() {
     const isPlaying = this.isPlaying();
 
+    let analyser = false;
+    if (this.isPlaying()) {
+      analyser = Howler.ctx.createAnalyser();
+      Howler.masterGain.disconnect();
+      Howler.masterGain.connect(analyser);
+      console.log(analyser);
+    }
+
     this.setState(
       {
         playing: isPlaying,
         context: isPlaying ? Howler.ctx : false,
+        analyser: isPlaying ? analyser : false,
         audio: isPlaying ? this.state.howl._soundById(this.state.soundID) : false
       }
     );
@@ -160,6 +170,7 @@ class HelloWorld extends React.Component {
           width="400"
           height="300"
           context={this.state.context}
+          analyser={this.state.analyser}
           audio={this.state.audio}
           playing={this.isPlaying()}
         />
