@@ -22,36 +22,40 @@ Dependencies
 $ sudo apt install libsqlite3-dev libsqlite3-0 libtagc0-dev
 $ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ```
-OSX?
+
+#### Do nothing
+```bash
+cargo run
 ```
-$ brew install taglib
+#### Initialise conf.ini
+```bash
+cargo run init
 ```
-Do nothing
+#### Index files
+WARNING: Will delete the old index
+```bash
+cargo run index
 ```
-$ cargo run
-```
-Initialise conf.ini
-```
-$ cargo run init
-```
-Index files
-```
-$ cargo run index
-```
-Serve
-```
+#### Serve
+```bash
 $ cargo run serve
 ```
 
-```
-sudo mount -t cifs -o ro,guest,vers=1.0 //192.168.769.857/music /music
+### Docker rebuild container
+```bash
+make reset
 ```
 
+### How to mount a samba share
+```
+sudo mount -t cifs -o ro,guest,vers=1.0 //192.168.769.857/music /files
+```
+### Todo
+- fix milkdrop
 - async worker process to index all changes all the time
 - page with stats
 - need to see distribution of song lengths
 - button to press when song fails
-- better ui, sort out milkdrop, it sucks
 - possible api/ai based categorisation
 - stream the videos
 - browsable ui
