@@ -1,6 +1,6 @@
 use rusqlite::{params, Result as SQLiteResult};
 use serde::{Deserialize, Serialize};
-use std::convert::Infallible;
+use std::convert::{Infallible, TryInto};
 use std::env;
 use std::path::Path;
 use walkdir::WalkDir;
@@ -365,15 +365,16 @@ async fn serve() {
         Err(err) => println!("{}", err),
     }
 
-    // domain.tld
-    let root = warp::path::end().map(|| {
-        let response = EmptyResponse {
-            status: 200,
-            message: "OK".to_string(),
-        };
+    // default e.g https://domain.tld
+    let default = warp::path::end().and(warp::fs::file("static/index.html"));
 
-        warp::reply::json(&response)
-    });
+    // domain.tld/bundle.js
+    let bundle = warp::path!("bundle.js").and(warp::fs::file("static/bundle.js"));
+
+    // domain.tld/favicon.svg
+    let favicon = warp::path!("favicon.svg").and(warp::fs::dir("static/favicon.svg"));
+
+    let assets = warp::path!("static").and(warp::fs::dir("static"));
 
     // domain.tld/search/[anything]
     let search = warp::path!("search" / String).map(|query| {
@@ -426,7 +427,16 @@ async fn serve() {
     //.allow_headers(vec!["Sec-Fetch-Mode", "Referer", "Origin", "Access-Control-Request-Method", "Access-Control-Request-Headers"]);
 
     let gets = warp::get()
-        .and(root.or(search).or(random).or(stream).or(download))
+        .and(
+            default
+                .or(favicon)
+                .or(bundle)
+                .or(assets)
+                .or(search)
+                .or(random)
+                .or(stream)
+                .or(download),
+        )
         .with(cors)
         .recover(handle_rejection);
 
@@ -439,7 +449,11 @@ async fn handle_rejection(err: Rejection) -> std::result::Result<impl Reply, Inf
     } else if err.find::<warp::reject::PayloadTooLarge>().is_some() {
         (StatusCode::BAD_REQUEST, "Payload too large".to_string())
     } else {
-        eprintln!("unhandled error: {:?}", err);
+        eprintln!(
+            "unhandled error: {:?}. working dir: {:?}",
+            err,
+            env::current_dir()
+        );
         (
             StatusCode::INTERNAL_SERVER_ERROR,
             "Internal Server Error".to_string(),

@@ -88,14 +88,17 @@ impl File {
 
     pub fn populate_lofty(&mut self) {
         let path: &Path = Path::new(&self.path);
-        let potentially_tagged_file = match Probe::open(path)
-            .expect("ERROR: Bad path provided!")
-            .read() {
+        let potentially_tagged_file =
+            match Probe::open(path).expect("ERROR: Bad path provided!").read() {
                 Ok(file) => file,
                 Err(error) => {
-                    println!("Error: Can't parse flac `{}`. Error: {}", self.path, error.to_string());
-                    return
-                },
+                    println!(
+                        "Error: Can't parse flac `{}`. Error: {}",
+                        self.path,
+                        error.to_string()
+                    );
+                    return;
+                }
             };
 
         let properties = potentially_tagged_file.properties();

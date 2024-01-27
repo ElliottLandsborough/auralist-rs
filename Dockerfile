@@ -14,6 +14,7 @@ RUN apk update \
 
 EXPOSE 1337
 
+COPY ./static/* /static/
 COPY ./conf.ini /conf.ini
 COPY ./exclusions.txt /exclusions.txt
 COPY ./auralist.sqlite3.gz /auralist.sqlite3.gz
