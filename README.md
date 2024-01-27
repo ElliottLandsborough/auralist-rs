@@ -6,13 +6,13 @@
 
 Development
 ```
-npm install
-npm run start
+yarn install
+yarn run start
 ```
 
 Build
 ```
-npm run build
+yarn run build
 ```
 
 ### Server
