@@ -38,7 +38,7 @@ class HelloWorld extends React.Component {
   }
 
   getUrl(path) {
-    let domainPrefix = 'http://localhost:1337/';
+    let domainPrefix;
 
     if (window.location.hostname === 'randomsound.uk') {
         domainPrefix = 'https://randomsound.uk/';
