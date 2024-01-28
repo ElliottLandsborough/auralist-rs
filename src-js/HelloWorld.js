@@ -25,6 +25,7 @@ class HelloWorld extends React.Component {
       context: false,
       audio: false,
       soundID: false,
+      thinking: false,
     };
   }
 
@@ -58,7 +59,6 @@ class HelloWorld extends React.Component {
       analyser = Howler.ctx.createAnalyser();
       Howler.masterGain.disconnect();
       Howler.masterGain.connect(analyser);
-      console.log(analyser);
     }
 
     this.setState(
@@ -108,6 +108,7 @@ class HelloWorld extends React.Component {
 
   getAndPlay() {
     let self = this;
+    self.setState({thinking: true});
     var request = new XMLHttpRequest();
     request.open('GET', this.getUrl('random'), true);
     request.onload = function() {
@@ -132,8 +133,8 @@ class HelloWorld extends React.Component {
 
         self.play(url, ext);
       }
+      self.setState({thinking: false});
     }
-
     request.send();
   }
 
@@ -177,11 +178,16 @@ class HelloWorld extends React.Component {
       )
     }
 
+    let playNextSong;
+    if (!this.state.thinking) {
+      playNextSong = (<a onClick={this.state.thinking ? null : this.handleRandomClick.bind(this)} className="button play">Play / next</a>)
+    }
+
     return (
       <div className="container">
         <h1>randomsound.uk</h1>
         <div className="controls">
-          <a onClick={this.handleRandomClick.bind(this)} className="button play">Play / next</a>
+          {playNextSong}
           {stop}
         </div>
         {file}

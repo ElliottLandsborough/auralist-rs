@@ -372,7 +372,7 @@ async fn serve() {
     let bundle = warp::path!("bundle.js").and(warp::fs::file("static/bundle.js"));
 
     // domain.tld/favicon.svg
-    let favicon = warp::path!("favicon.svg").and(warp::fs::dir("static/favicon.svg"));
+    let favicon = warp::path!("favicon.svg").and(warp::fs::file("static/favicon.svg"));
 
     // domain.tld/search/[anything]
     let search = warp::path!("search" / String).map(|query| {
@@ -419,7 +419,7 @@ async fn serve() {
         .and_then(move |hash: String| get_range("".to_string(), hash));
 
     let cors = warp::cors()
-        .allow_origins(vec!["https://randomsound.uk", "http://localhost:1338"])
+        .allow_origins(vec!["https://randomsound.uk", "http://localhost:1338", "http://localhost:1337"])
         .allow_methods(&[Method::GET, Method::POST, Method::OPTIONS])
         .allow_headers(vec!["Authorization", "Content-Type", "User-Agent"]);
     //.allow_headers(vec!["Sec-Fetch-Mode", "Referer", "Origin", "Access-Control-Request-Method", "Access-Control-Request-Headers"]);
