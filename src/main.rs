@@ -531,7 +531,7 @@ impl From<ParseIntError> for Error {
 async fn internal_get_range(range_header: String, hash: String) -> Result<impl warp::Reply, Error> {
     let path = get_path_from_hash(hash.clone());
     let mime = get_mime_from_hash(hash);
-
+    println!("RANGE: {}", path);
     let mut file = tokio::fs::File::open(path).await?;
     let metadata = file.metadata().await?;
     let size = metadata.len();
