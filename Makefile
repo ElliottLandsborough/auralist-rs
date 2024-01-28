@@ -6,9 +6,9 @@ kill_if_running:
 	docker kill auralist || true
 
 clean:
-	docker system prune -a -f
+	docker system prune -f
 
-# Index all files
+# WARNING: Indexing will delete old index
 index:
 	cargo run index
 
@@ -18,4 +18,4 @@ build:
 run:
 	docker run --name auralist -p 1337:1337 -v ./files:/files -d auralist
 
-reset: build kill_if_running run
+reset: build kill_if_running clean run

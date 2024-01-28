@@ -1,11 +1,16 @@
 FROM rust:alpine as builder
 
-WORKDIR /app/src
 RUN USER=root
 
 RUN apk add --no-cache musl-dev sqlite sqlite-libs sqlite-dev
 
-COPY ./ ./
+# Everything needed for compilation
+COPY src /app/src/src
+COPY Cargo.toml /app/src/Cargo.toml
+COPY Cargo.lock /app/src/Cargo.lock
+
+# Compile
+WORKDIR /app/src
 RUN cargo build --release
 
 FROM alpine:latest
