@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
+use std::fs::File as StdFsFile;
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct File {
@@ -12,6 +13,8 @@ pub struct File {
     pub path: String,
     pub file_name: String,
     pub file_ext: String,
+    pub file_size: u64,
+    pub file_modified: SystemTime,
     pub title: String,
     pub artist: String,
     pub album: String,
@@ -22,6 +25,7 @@ impl File {
     pub fn populate_from_path(path: &Path, extensions: Vec<&str>) -> File {
         let path_string = path.to_str().unwrap().to_string();
         let file_name = String::from(path.file_name().unwrap().to_string_lossy());
+        let file = StdFsFile::open(path).unwrap();
 
         println!("--- File: {} ---", file_name);
 
@@ -35,6 +39,8 @@ impl File {
             path: path_string,
             file_name: file_name,
             file_ext: file_ext.clone(),
+            file_size: file.metadata().unwrap().len(),
+            file_modified: file.metadata().unwrap().modified().expect("file mtime could not be read"),
             title: "".to_string(),
             artist: "".to_string(),
             album: "".to_string(),
