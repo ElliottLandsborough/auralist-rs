@@ -33,8 +33,8 @@ impl SQLite {
             artist        TEXT NOT NULL,
             album         TEXT NOT NULL,
             duration      INTEGER,
-            accessed_at    INTEGER,
-            indexed_at    INTEGER
+            indexed_at    INTEGER,
+            accessed_at    INTEGER
         );
 
         CREATE INDEX IF NOT EXISTS duration ON files (duration);

@@ -308,7 +308,7 @@ fn random_song(files: Vec<File>) -> Vec<File> {
 }
 
 fn find_song_by_hash(input: String) -> SQLiteResult<Vec<File>> {
-    let query = "SELECT id, path, file_name, file_ext, title, artist, album, duration FROM `files` WHERE `id` IN (SELECT file FROM plays WHERE hash = :input) LIMIT 0, 1;";
+    let query = "SELECT id, path, file_name, file_ext, title, artist, album, duration, indexed_at, accessed_at FROM `files` WHERE `id` IN (SELECT file FROM plays WHERE hash = :input) LIMIT 0, 1;";
 
     let conn = SQLite::connect();
 
