@@ -2,10 +2,10 @@ use crate::database::SQLite;
 use lofty::{Accessor, AudioFile, Probe, Tag, TaggedFileExt};
 use rusqlite::params;
 use serde::{Deserialize, Serialize};
+use std::fs::File as StdFsFile;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
-use std::fs::File as StdFsFile;
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct File {
@@ -19,7 +19,7 @@ pub struct File {
     pub artist: String,
     pub album: String,
     pub duration: u64,
-    pub indexed_at: u64
+    pub indexed_at: u64,
 }
 
 impl File {
@@ -41,12 +41,22 @@ impl File {
             file_name: file_name,
             file_ext: file_ext.clone(),
             file_size: file.metadata().unwrap().len(),
-            file_modified: file.metadata().unwrap().modified().expect("file mtime could not be read").duration_since(UNIX_EPOCH).unwrap().as_secs(),
+            file_modified: file
+                .metadata()
+                .unwrap()
+                .modified()
+                .expect("file mtime could not be read")
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs(),
             title: "".to_string(),
             artist: "".to_string(),
             album: "".to_string(),
             duration: 0,
-            indexed_at: SystemTime::UNIX_EPOCH.duration_since(UNIX_EPOCH).unwrap().as_secs(), // this is 0
+            indexed_at: SystemTime::UNIX_EPOCH
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs(), // this is 0
         };
 
         if extensions.contains(&&file_ext.as_str()) {
@@ -54,7 +64,8 @@ impl File {
             if file_ext == "mp3" || file_ext == "flac" {
                 f.populate_lofty();
             }
-        }   f
+        }
+        f
     }
 
     pub fn save_to_database(&self) {

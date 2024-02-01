@@ -52,6 +52,7 @@ sudo mount -t cifs -o ro,guest,vers=1.0 //192.168.769.857/music /files
 ```
 ### Todo
 - async worker process to index all changes all the time
+- set async worker to low priority somehow
 - make milkdrop respond properly
 - page with stats
 - need to see distribution of song lengths

@@ -2,7 +2,6 @@ use rusqlite::{backup, Connection as RuConnection, Result as SQLiteResult};
 use std::time::Duration;
 
 use crate::config::Settings;
-use crate::dbbackup::BackupFile;
 
 pub struct SQLite;
 
@@ -14,7 +13,7 @@ impl SQLite {
     }
 
     pub fn connect() -> RuConnection {
-        match RuConnection::open("file:blah?cache=shared") {
+        match RuConnection::open("file:auralist.sqlite?cache=shared") {
             Ok(conn) => conn,
             Err(error) => panic!("Cannot connect to SQLite: {}", error),
         }
@@ -31,13 +30,13 @@ impl SQLite {
             path          TEXT NOT NULL,
             file_name     TEXT NOT NULL,
             file_ext      TEXT NOT NULL,
-            file_modified INTEGER
+            file_size     INTEGER,
+            file_modified INTEGER,
             title         TEXT NOT NULL,
             artist        TEXT NOT NULL,
             album         TEXT NOT NULL,
             duration      INTEGER,
-            indexed_at    INTEGER,
-
+            indexed_at    INTEGER
         );
 
         CREATE INDEX duration ON files (duration);

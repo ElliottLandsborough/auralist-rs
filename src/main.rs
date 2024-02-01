@@ -7,7 +7,6 @@ use walkdir::WalkDir;
 use warp::{http::Method, http::StatusCode, Filter, Rejection, Reply};
 
 mod database;
-mod dbbackup;
 use crate::database::SQLite;
 mod config;
 use crate::config::{ConfigFile, Settings};
@@ -28,7 +27,6 @@ fn main() {
 
         match command.as_str() {
             "init" => config.create(),
-            "index" => index(),
             "serve" => serve(),
             _ => println!("Please choose a command e.g 'init' or 'index'"),
         }
@@ -141,7 +139,7 @@ fn get_files(
 }
 
 fn test_db() -> SQLiteResult<()> {
-    let query = "SELECT id, path, file_name, file_ext, file_size, file_modified, album, artist, title, duration, indexed_at FROM files LIMIT 0, 5";
+    let query = "SELECT id, path, file_name, file_ext, file_size, file_modified, title, artist, album, duration, indexed_at FROM files LIMIT 0, 5";
 
     let conn = SQLite::connect();
     let mut stmt = conn.prepare(query)?;
@@ -153,9 +151,9 @@ fn test_db() -> SQLiteResult<()> {
             file_ext: row.get(3)?,
             file_size: row.get(4)?,
             file_modified: row.get(5)?,
-            album: row.get(6)?,
+            title: row.get(6)?,
             artist: row.get(7)?,
-            title: row.get(8)?,
+            album: row.get(8)?,
             duration: row.get(9)?,
             indexed_at: row.get(10)?,
         })
@@ -366,6 +364,8 @@ struct FileResponse {
 async fn serve() {
     let _conn = SQLite::initialize();
 
+    index();
+
     // Restore connection from db file
     match SQLite::restore() {
         Ok(_) => println!("Success."),
@@ -426,7 +426,12 @@ async fn serve() {
         .and_then(move |hash: String| get_range("".to_string(), hash));
 
     let cors = warp::cors()
-        .allow_origins(vec!["https://randomsound.uk", "http://localhost:1338", "http://localhost:1337", "http://192.168.2.41:1337"])
+        .allow_origins(vec![
+            "https://randomsound.uk",
+            "http://localhost:1338",
+            "http://localhost:1337",
+            "http://192.168.2.41:1337",
+        ])
         .allow_methods(&[Method::GET, Method::POST, Method::OPTIONS])
         .allow_headers(vec!["Authorization", "Content-Type", "User-Agent"]);
     //.allow_headers(vec!["Sec-Fetch-Mode", "Referer", "Origin", "Access-Control-Request-Method", "Access-Control-Request-Headers"]);
@@ -453,10 +458,7 @@ async fn handle_rejection(err: Rejection) -> std::result::Result<impl Reply, Inf
     } else if err.find::<warp::reject::PayloadTooLarge>().is_some() {
         (StatusCode::BAD_REQUEST, "Payload too large".to_string())
     } else {
-        eprintln!(
-            "unhandled error: {:?}",
-            err
-        );
+        eprintln!("unhandled error: {:?}", err);
         (
             StatusCode::INTERNAL_SERVER_ERROR,
             "Internal Server Error".to_string(),
