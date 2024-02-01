@@ -87,17 +87,6 @@ fn index() {
         Err(err) => println!("{}", err),
     }
 
-    match SQLite::backup_to_gz() {
-        Ok(file) => file,
-        Err(err) => println!("Backup error: {}", err),
-    };
-
-    // Restore connection from db file
-    match SQLite::restore_from_gz() {
-        Ok(_) => println!("Success."),
-        Err(err) => println!("Restore error: {}", err),
-    }
-
     // Try to query restored db
     match test_db() {
         Ok(_) => println!("Success."),
@@ -152,7 +141,7 @@ fn get_files(
 }
 
 fn test_db() -> SQLiteResult<()> {
-    let query = "SELECT id, path, file_name, file_ext, album, artist, title, duration FROM files LIMIT 0, 5";
+    let query = "SELECT id, path, file_name, file_ext, file_size, file_modified, album, artist, title, duration, indexed_at FROM files LIMIT 0, 5";
 
     let conn = SQLite::connect();
     let mut stmt = conn.prepare(query)?;
@@ -162,10 +151,13 @@ fn test_db() -> SQLiteResult<()> {
             path: row.get(1)?,
             file_name: row.get(2)?,
             file_ext: row.get(3)?,
-            album: row.get(4)?,
-            artist: row.get(5)?,
-            title: row.get(6)?,
-            duration: row.get(7)?,
+            file_size: row.get(4)?,
+            file_modified: row.get(5)?,
+            album: row.get(6)?,
+            artist: row.get(7)?,
+            title: row.get(8)?,
+            duration: row.get(9)?,
+            indexed_at: row.get(10)?,
         })
     })?;
 
@@ -184,20 +176,26 @@ fn search_result_to_file(
     path: String,
     file_name: String,
     file_ext: String,
+    file_size: u64,
+    file_modified: u64,
     title: String,
     artist: String,
     album: String,
     duration: u64,
+    indexed_at: u64,
 ) -> SQLiteResult<File> {
     let file = File {
-        id: id,
-        path: path,
-        file_name: file_name,
-        file_ext: file_ext,
-        album: album,
-        artist: artist,
-        title: title,
+        id,
+        path,
+        file_name,
+        file_ext,
+        file_size,
+        file_modified,
+        title,
+        artist,
+        album,
         duration: duration,
+        indexed_at,
     };
 
     Ok(file)
@@ -213,14 +211,17 @@ fn search_db(input: String) -> SQLiteResult<Vec<File>> {
 
     let rows = stmt.query_and_then(&[(":input", &input)], |row| {
         search_result_to_file(
-            row.get(1)?, // id
-            row.get(2)?, // path
-            row.get(3)?, // filename
-            row.get(4)?, // ext
-            row.get(5)?, // title
-            row.get(6)?, // artist
-            row.get(7)?, // album
-            row.get(8)?, // album
+            row.get(0)?,
+            row.get(1)?,
+            row.get(2)?,
+            row.get(3)?,
+            row.get(4)?,
+            row.get(5)?,
+            row.get(6)?,
+            row.get(7)?,
+            row.get(8)?,
+            row.get(9)?,
+            row.get(10)?,
         )
     })?;
 
@@ -236,7 +237,7 @@ fn search_db(input: String) -> SQLiteResult<Vec<File>> {
 }
 
 fn random_song() -> SQLiteResult<Vec<File>> {
-    let query = "SELECT id, path, file_name, file_ext, title, artist, album, duration FROM `files` WHERE `file_ext` IN ('mp3', 'flac') AND _ROWID_ >= (abs(random()) % (SELECT max(_ROWID_) FROM `files`)) LIMIT 1;";
+    let query = "SELECT id, path, file_name, file_ext, file_size, file_modified, title, artist, album, duration, indexed_at FROM `files` WHERE `file_ext` IN ('mp3', 'flac') AND _ROWID_ >= (abs(random()) % (SELECT max(_ROWID_) FROM `files`)) LIMIT 1;";
 
     let conn = SQLite::connect();
 
@@ -244,14 +245,17 @@ fn random_song() -> SQLiteResult<Vec<File>> {
 
     let rows = stmt.query_map(params![], |row| {
         search_result_to_file(
-            row.get(0)?, // id
-            row.get(1)?, // path
-            row.get(2)?, // filename
-            row.get(3)?, // ext
-            row.get(4)?, // title
-            row.get(5)?, // artist
-            row.get(6)?, // album
-            row.get(7)?, // duration
+            row.get(0)?,
+            row.get(1)?,
+            row.get(2)?,
+            row.get(3)?,
+            row.get(4)?,
+            row.get(5)?,
+            row.get(6)?,
+            row.get(7)?,
+            row.get(8)?,
+            row.get(9)?,
+            row.get(10)?,
         )
     })?;
 
@@ -275,14 +279,17 @@ fn find_song_by_hash(input: String) -> SQLiteResult<Vec<File>> {
 
     let rows = stmt.query_and_then(&[(":input", &input)], |row| {
         search_result_to_file(
-            row.get(0)?, // id
-            row.get(1)?, // path
-            row.get(2)?, // filename
-            row.get(3)?, // ext
-            row.get(4)?, // title
-            row.get(5)?, // artist
-            row.get(6)?, // album
-            row.get(7)?, // duration
+            row.get(1)?,
+            row.get(2)?,
+            row.get(3)?,
+            row.get(4)?,
+            row.get(5)?,
+            row.get(6)?,
+            row.get(7)?,
+            row.get(8)?,
+            row.get(9)?,
+            row.get(10)?,
+            row.get(11)?,
         )
     })?;
 
@@ -360,7 +367,7 @@ async fn serve() {
     let _conn = SQLite::initialize();
 
     // Restore connection from db file
-    match SQLite::restore_from_gz() {
+    match SQLite::restore() {
         Ok(_) => println!("Success."),
         Err(err) => println!("{}", err),
     }

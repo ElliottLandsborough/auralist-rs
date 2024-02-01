@@ -14,7 +14,7 @@ impl SQLite {
     }
 
     pub fn connect() -> RuConnection {
-        match RuConnection::open("file:blah?mode=memory&cache=shared") {
+        match RuConnection::open("file:blah?cache=shared") {
             Ok(conn) => conn,
             Err(error) => panic!("Cannot connect to SQLite: {}", error),
         }
@@ -27,14 +27,17 @@ impl SQLite {
 
         let sql = "
         CREATE TABLE files (
-            id        INTEGER PRIMARY KEY,
-            path      TEXT NOT NULL,
-            file_name TEXT NOT NULL,
-            file_ext  TEXT NOT NULL,
-            title     TEXT NOT NULL,
-            artist    TEXT NOT NULL,
-            album     TEXT NOT NULL,
-            duration  SMALLINT
+            id            INTEGER PRIMARY KEY,
+            path          TEXT NOT NULL,
+            file_name     TEXT NOT NULL,
+            file_ext      TEXT NOT NULL,
+            file_modified INTEGER
+            title         TEXT NOT NULL,
+            artist        TEXT NOT NULL,
+            album         TEXT NOT NULL,
+            duration      INTEGER,
+            indexed_at    INTEGER,
+
         );
 
         CREATE INDEX duration ON files (duration);
@@ -69,35 +72,8 @@ impl SQLite {
         }
     }
 
-    pub fn backup_to_gz() -> SQLiteResult<()> {
-        println!("Backing up db to file...");
+    pub fn restore() -> SQLiteResult<()> {
         let db_file = Settings::get("System", "db_file");
-        let file_to_compress = db_file.clone();
-        let src = SQLite::connect();
-        let mut dst = RuConnection::open(db_file)?;
-        let backup = backup::Backup::new(&src, &mut dst)?;
-        backup.run_to_completion(
-            5,
-            Duration::from_millis(0),
-            Some(SQLite::db_backup_progress),
-        )?;
-
-        let f = BackupFile::new(&file_to_compress);
-        f.compress_to_gz();
-
-        println!("Backup finished.");
-
-        Ok(())
-    }
-
-    pub fn restore_from_gz() -> SQLiteResult<()> {
-        println!("Restoring db from file...");
-        let db_file = Settings::get("System", "db_file");
-
-        let file_to_decompress = db_file.clone();
-        let f = BackupFile::new(&file_to_decompress);
-        f.decompress_from_gz();
-
         let src = RuConnection::open(db_file)?;
         let mut dst = SQLite::connect();
         let backup = backup::Backup::new(&src, &mut dst)?;
