@@ -21,8 +21,5 @@ EXPOSE 1337
 
 COPY --from=builder /app/src/target/release/auralist-rs /app
 COPY ./static/* /static/
-COPY ./conf.ini /conf.ini
-COPY ./exclusions.txt /exclusions.txt
-COPY ./auralist.sqlite3.gz /auralist.sqlite3.gz
 
-CMD ["/app", "serve"]
+CMD ["/app"]
