@@ -20,7 +20,7 @@ pub struct File {
     pub album: String,
     pub duration: u64,
     pub indexed_at: u64,
-    pub accesed_at: u64,
+    pub accessed_at: u64,
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
@@ -74,7 +74,7 @@ impl File {
             album: "".to_string(),
             duration: 0,
             indexed_at: 0,
-            accesed_at: 0,
+            accessed_at: 0,
         }
     }
 
@@ -82,7 +82,7 @@ impl File {
         let conn = SQLite::initialize();
 
         match conn.execute(
-            "INSERT INTO files (path, file_name, file_ext, file_size, file_modified, title, artist, album, duration, indexed_at, accesed_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+            "INSERT INTO files (path, file_name, file_ext, file_size, file_modified, title, artist, album, duration, indexed_at, accessed_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
             params![
                 self.path,
                 self.file_name,
@@ -94,7 +94,7 @@ impl File {
                 self.album,
                 self.duration,
                 self.indexed_at,
-                self.accesed_at
+                self.accessed_at
             ],
         ) {
             Ok(_) => println!("Inserting into files..."),
@@ -170,7 +170,7 @@ impl File {
             .unwrap()
             .as_secs();
 
-        self.accesed_at = now;
+        self.accessed_at = now;
         self.path = uuid.clone();
 
         uuid

@@ -70,11 +70,11 @@ fn clear_plays(plays_mutex: Arc<Mutex<HashMap<String, File>>>) {
             .duration_since(UNIX_EPOCH)
             .unwrap()
             .as_secs();
-        let accesed_at = file.accesed_at;
+        let accessed_at = file.accessed_at;
         let duration = file.duration;
 
         // if enough time has passed for the song to have played 4 times...
-        if now - accesed_at > duration * 4 {
+        if now - accessed_at > duration * 4 {
             // the url won't work anymore
             plays.remove(&hash);
             println!("cleaned");
@@ -200,7 +200,7 @@ fn index_and_commit_to_db(f: &mut File) -> &mut File {
 }
 
 fn test_db() -> SQLiteResult<()> {
-    let query = "SELECT id, path, file_name, file_ext, file_size, file_modified, title, artist, album, duration, indexed_at, accesed_at FROM files LIMIT 0, 5";
+    let query = "SELECT id, path, file_name, file_ext, file_size, file_modified, title, artist, album, duration, indexed_at, accessed_at FROM files LIMIT 0, 5";
 
     let conn = SQLite::connect();
     let mut stmt = conn.prepare(query)?;
@@ -217,7 +217,7 @@ fn test_db() -> SQLiteResult<()> {
             album: row.get(8)?,
             duration: row.get(9)?,
             indexed_at: row.get(10)?,
-            accesed_at: row.get(11)?,
+            accessed_at: row.get(11)?,
         })
     })?;
 
@@ -243,7 +243,7 @@ fn search_result_to_file(
     album: String,
     duration: u64,
     indexed_at: u64,
-    accesed_at: u64,
+    accessed_at: u64,
 ) -> SQLiteResult<File> {
     let file = File {
         id,
@@ -257,7 +257,7 @@ fn search_result_to_file(
         album,
         duration: duration,
         indexed_at: indexed_at,
-        accesed_at: accesed_at,
+        accessed_at: accessed_at,
     };
 
     Ok(file)

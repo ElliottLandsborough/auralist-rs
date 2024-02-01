@@ -33,7 +33,7 @@ impl SQLite {
             artist        TEXT NOT NULL,
             album         TEXT NOT NULL,
             duration      INTEGER,
-            accesed_at    INTEGER,
+            accessed_at    INTEGER,
             indexed_at    INTEGER
         );
 
