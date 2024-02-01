@@ -1,5 +1,4 @@
-use rusqlite::{backup, Connection as RuConnection, Result as SQLiteResult};
-use std::time::Duration;
+use rusqlite::Connection as RuConnection;
 
 pub struct SQLite;
 
@@ -34,21 +33,11 @@ impl SQLite {
             artist        TEXT NOT NULL,
             album         TEXT NOT NULL,
             duration      INTEGER,
+            accesed_at    INTEGER,
             indexed_at    INTEGER
         );
 
         CREATE INDEX IF NOT EXISTS duration ON files (duration);
-
-        CREATE TABLE IF NOT EXISTS plays (
-            id        INTEGER PRIMARY KEY,
-            hash      TEXT,
-            time      INTEGER,
-            file      INTEGER
-        );
-
-        CREATE INDEX IF NOT EXISTS hash ON plays (hash);
-        CREATE INDEX IF NOT EXISTS time ON plays (time);
-        CREATE INDEX IF NOT EXISTS file ON plays (file);
         ";
 
         match conn.execute_batch(sql) {

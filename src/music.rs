@@ -20,6 +20,7 @@ pub struct File {
     pub album: String,
     pub duration: u64,
     pub indexed_at: u64,
+    pub accesed_at: u64,
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
@@ -73,6 +74,7 @@ impl File {
             album: "".to_string(),
             duration: 0,
             indexed_at: 0,
+            accesed_at: 0,
         }
     }
 
@@ -80,7 +82,7 @@ impl File {
         let conn = SQLite::initialize();
 
         match conn.execute(
-            "INSERT INTO files (path, file_name, file_ext, file_size, file_modified, title, artist, album, duration, indexed_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+            "INSERT INTO files (path, file_name, file_ext, file_size, file_modified, title, artist, album, duration, indexed_at, accesed_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
             params![
                 self.path,
                 self.file_name,
@@ -91,7 +93,8 @@ impl File {
                 self.artist,
                 self.album,
                 self.duration,
-                self.indexed_at
+                self.indexed_at,
+                self.accesed_at
             ],
         ) {
             Ok(_) => println!("Inserting into files..."),
@@ -160,23 +163,14 @@ impl File {
     }
 
     pub fn get_unique_id(&mut self) -> String {
-        let conn = SQLite::connect();
-
         let uuid = Uuid::new_v4().to_string();
 
-        let now = match SystemTime::now().duration_since(UNIX_EPOCH) {
-            Ok(n) => n.as_secs(),
-            Err(_) => panic!("SystemTime before UNIX EPOCH!"),
-        } as f64;
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
 
-        match conn.execute(
-            "INSERT INTO plays (hash, time, file) VALUES (?1, ?2, ?3)",
-            params![uuid, now, self.id,],
-        ) {
-            Ok(_) => (),
-            Err(err) => println!("Update failed: {}", err),
-        }
-
+        self.accesed_at = now;
         self.path = uuid.clone();
 
         uuid

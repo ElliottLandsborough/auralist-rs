@@ -1,5 +1,5 @@
 use rand::seq::SliceRandom;
-use rand::{seq, thread_rng};
+
 use rusqlite::{params, Result as SQLiteResult};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -9,12 +9,14 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use walkdir::WalkDir;
 use warp::{http::Method, http::StatusCode, Filter, Rejection, Reply};
 
+use std::thread::sleep;
+use std::time::{Duration, Instant};
+
 mod database;
 use crate::database::SQLite;
 mod music;
 use crate::music::File;
 use crate::music::FileHashed;
-use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread;
 
@@ -32,15 +34,52 @@ fn main() {
 
     thread::scope(|s| {
         s.spawn(|| {
-            println!("hello from the first scoped thread");
+            println!("Indexing files...");
             index(files_mutex.clone());
         });
         s.spawn(|| {
-            println!("hello from the second scoped thread");
+            println!("Starting periodic cleanup...");
+            cleanup(plays_mutex.clone());
+        });
+        s.spawn(|| {
+            println!("Starting web server...");
             serve(files_mutex.clone(), plays_mutex.clone());
         });
-        println!("hello from the main thread");
+        println!("Hello from the main... \\m/");
     });
+}
+
+#[tokio::main]
+async fn cleanup(plays_mutex: Arc<Mutex<HashMap<String, File>>>) {
+    let interval = Duration::from_secs(5);
+    let mut next_time = Instant::now() + interval;
+
+    loop {
+        clear_plays(plays_mutex.clone());
+        sleep(next_time - Instant::now());
+        next_time += interval;
+    }
+}
+
+fn clear_plays(plays_mutex: Arc<Mutex<HashMap<String, File>>>) {
+    let mut plays = plays_mutex.lock().unwrap();
+    let iter = plays.clone().into_iter();
+
+    for (hash, file) in iter {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        let accesed_at = file.accesed_at;
+        let duration = file.duration;
+
+        // if enough time has passed for the song to have played 4 times...
+        if now - accesed_at > duration * 4 {
+            // the url won't work anymore
+            plays.remove(&hash);
+            println!("cleaned");
+        }
+    }
 }
 
 #[tokio::main]
@@ -136,11 +175,7 @@ fn get_files(
         }
     }
 
-    println!("{:?}", "BEFORE COMMIT");
     let mut files = files_mutex.lock().unwrap();
-    for file in &mut *files {
-        println!("{:?}", file);
-    }
 
     for (_, file) in files.iter_mut().enumerate() {
         file.file_modified = SystemTime::now()
@@ -148,11 +183,6 @@ fn get_files(
             .unwrap()
             .as_secs();
         *file = index_and_commit_to_db(file).clone();
-    }
-
-    println!("{:?}", "AFTER COMMIT");
-    for file in &mut *files {
-        println!("{:?}", file);
     }
 
     Ok(())
@@ -170,7 +200,7 @@ fn index_and_commit_to_db(f: &mut File) -> &mut File {
 }
 
 fn test_db() -> SQLiteResult<()> {
-    let query = "SELECT id, path, file_name, file_ext, file_size, file_modified, title, artist, album, duration, indexed_at FROM files LIMIT 0, 5";
+    let query = "SELECT id, path, file_name, file_ext, file_size, file_modified, title, artist, album, duration, indexed_at, accesed_at FROM files LIMIT 0, 5";
 
     let conn = SQLite::connect();
     let mut stmt = conn.prepare(query)?;
@@ -187,6 +217,7 @@ fn test_db() -> SQLiteResult<()> {
             album: row.get(8)?,
             duration: row.get(9)?,
             indexed_at: row.get(10)?,
+            accesed_at: row.get(11)?,
         })
     })?;
 
@@ -212,6 +243,7 @@ fn search_result_to_file(
     album: String,
     duration: u64,
     indexed_at: u64,
+    accesed_at: u64,
 ) -> SQLiteResult<File> {
     let file = File {
         id,
@@ -224,7 +256,8 @@ fn search_result_to_file(
         artist,
         album,
         duration: duration,
-        indexed_at,
+        indexed_at: indexed_at,
+        accesed_at: accesed_at,
     };
 
     Ok(file)
@@ -251,6 +284,7 @@ fn search_db(input: String) -> SQLiteResult<Vec<File>> {
             row.get(8)?,
             row.get(9)?,
             row.get(10)?,
+            row.get(11)?,
         )
     })?;
 
@@ -282,6 +316,7 @@ fn find_song_by_hash(input: String) -> SQLiteResult<Vec<File>> {
 
     let rows = stmt.query_and_then(&[(":input", &input)], |row| {
         search_result_to_file(
+            row.get(0)?,
             row.get(1)?,
             row.get(2)?,
             row.get(3)?,
@@ -539,6 +574,7 @@ async fn internal_get_range(
     let file_option = get_file_from_hash(hash, plays_mutex);
 
     if file_option.is_none() {
+        // Todo: return 404 here instead of 50
         return Err(Error {
             message: "Could not range. Hash not found.".to_string(),
         });
@@ -549,7 +585,6 @@ async fn internal_get_range(
     let path = &file.path;
     let guess = mime_guess::from_ext(&file.file_ext).first().unwrap();
     let mime = guess.essence_str();
-    println!("RANGE: {}", path);
     let mut file = tokio::fs::File::open(path).await?;
     let metadata = file.metadata().await?;
     let size = metadata.len();
