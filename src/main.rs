@@ -4,10 +4,14 @@ use rusqlite::{params, Result as SQLiteResult};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::convert::Infallible;
+use std::io::Empty;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 use walkdir::WalkDir;
 use warp::{http::Method, http::StatusCode, Filter, Rejection, Reply};
+use tantivy::doc;
+use murmurhash32::{murmurhash3};
+
 
 use std::thread::sleep;
 use std::time::{Duration, Instant};
@@ -17,6 +21,7 @@ use crate::database::SQLite;
 mod music;
 use crate::music::File;
 use crate::music::FileHashed;
+mod search;
 use std::sync::{Arc, Mutex};
 use std::thread;
 
@@ -26,27 +31,83 @@ use std::{
 };
 
 fn main() {
-    let files: Vec<File> = Vec::new();
+    let files: HashMap<u32, File> = HashMap::new();
     let files_mutex = Arc::new(Mutex::new(files));
 
+    // todo: should this be murmur or uuid?
     let plays: HashMap<String, File> = HashMap::new();
     let plays_mutex = Arc::new(Mutex::new(plays));
 
+    // murmur
+    let to_be_indexed: Vec<u32> = Vec::new();
+    let to_be_indexed_mutex = Arc::new(Mutex::new(to_be_indexed));
+
+    // murmur
+    let have_been_indexed: Vec<u32> = Vec::new();
+    let have_been_indexed_mutex = Arc::new(Mutex::new(have_been_indexed));
+
     thread::scope(|s| {
         s.spawn(|| {
-            println!("Indexing files...");
-            index(files_mutex.clone());
+            println!("Indexing basic file information...");
+            index(files_mutex.clone(), to_be_indexed_mutex.clone());
         });
         s.spawn(|| {
-            println!("Starting periodic cleanup...");
+            println!("Warming database with more file info...");
+            warm(files_mutex.clone(), to_be_indexed_mutex.clone(), have_been_indexed_mutex.clone());
+        });
+        s.spawn(|| {
+            println!("Starting periodic cleanup tasks...");
             cleanup(plays_mutex.clone());
         });
         s.spawn(|| {
             println!("Starting web server...");
-            serve(files_mutex.clone(), plays_mutex.clone());
+            serve(files_mutex.clone(), plays_mutex.clone(), have_been_indexed_mutex.clone());
         });
         println!("Hello from the main... \\m/");
     });
+}
+
+#[tokio::main]
+async fn warm(files_mutex: Arc<std::sync::Mutex<std::collections::HashMap<u32, music::File>>>, to_be_indexed_mutex: Arc<Mutex<Vec<u32>>>, have_been_indexed_mutex: Arc<Mutex<Vec<u32>>>) {
+    loop {
+        //println!("start warm");
+        let mut to_be_indexed = to_be_indexed_mutex.lock().unwrap();
+        let hash_to_be_indexed = to_be_indexed.pop();
+        drop(to_be_indexed);
+
+        if !hash_to_be_indexed.is_none() {
+            println!("we have a hash: {:?}", hash_to_be_indexed);
+            let mut files = files_mutex.lock().unwrap();
+
+            let file = match files.get(&hash_to_be_indexed.unwrap()) {
+                Some(file) => Some(file.clone()),
+                None => None,
+            };
+
+            if !file.is_none() {
+                println!("FILE IS NOT NONE");
+                let mut f = file.unwrap();
+                f.indexed_at = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs();
+                f = index_and_commit_to_db(&mut f).clone();
+                //files.(hash_to_be_indexed.unwrap(), f);
+                *files.get_mut(&hash_to_be_indexed.unwrap()).unwrap() = f;
+
+                // todo: update search
+                //search::write_index(f)
+
+                let mut have_been_indexed = have_been_indexed_mutex.lock().unwrap();
+                have_been_indexed.push(hash_to_be_indexed.unwrap());
+                have_been_indexed.dedup();
+                println!("{:?}", have_been_indexed);
+                drop(have_been_indexed);
+            }
+
+            drop(files);
+        }
+    }
 }
 
 #[tokio::main]
@@ -62,8 +123,10 @@ async fn cleanup(plays_mutex: Arc<Mutex<HashMap<String, File>>>) {
 }
 
 fn clear_plays(plays_mutex: Arc<Mutex<HashMap<String, File>>>) {
+    // Acquire and drop mutex
     let mut plays = plays_mutex.lock().unwrap();
     let iter = plays.clone().into_iter();
+    drop(plays);
 
     for (hash, file) in iter {
         let now = SystemTime::now()
@@ -75,17 +138,17 @@ fn clear_plays(plays_mutex: Arc<Mutex<HashMap<String, File>>>) {
 
         // if enough time has passed for the song to have played 4 times...
         if now - accessed_at > duration * 4 {
+            let mut plays = plays_mutex.lock().unwrap();
             // the url won't work anymore
             plays.remove(&hash);
+            drop(plays);
             println!("cleaned");
         }
     }
 }
 
 #[tokio::main]
-async fn index(files_mutex: Arc<std::sync::Mutex<Vec<music::File>>>) {
-    //let conn = SQLite::initialize();
-
+async fn index(files_mutex: Arc<std::sync::Mutex<HashMap<u32, File>>>, to_be_indexed_mutex: Arc<Mutex<Vec<u32>>>) {
     // todo: make this a command line arg
     let directory_to_index = "./files";
 
@@ -117,15 +180,10 @@ async fn index(files_mutex: Arc<std::sync::Mutex<Vec<music::File>>>) {
         directory_to_index.to_string(),
         directory_exclusions,
         files_mutex,
+        to_be_indexed_mutex,
     ) {
         Ok(_) => println!("Finished getting files."),
         Err(err) => println!("{}", err),
-    }
-
-    // Try to query restored db
-    match test_db() {
-        Ok(_) => println!("Success."),
-        Err(err) => println!("Test error: {}", err),
     }
 }
 
@@ -140,7 +198,8 @@ fn lines_from_file(filename: impl AsRef<Path>) -> Vec<String> {
 fn get_files(
     directory: std::string::String,
     exclusions: Vec<std::string::String>,
-    files_mutex: Arc<std::sync::Mutex<Vec<music::File>>>,
+    files_mutex: Arc<std::sync::Mutex<HashMap<u32, File>>>,
+    to_be_indexed_mutex: Arc<Mutex<Vec<u32>>>,
 ) -> Result<(), walkdir::Error> {
     println!("Walking files and saving to vector...");
 
@@ -165,24 +224,24 @@ fn get_files(
         if !path.is_dir() {
             // todo: make this a command line arg
             let binding = "flac,wav,mp3";
+
             let extensions_to_index: Vec<&str> = binding.split(",").collect();
             let f = File::populate_from_path(&path);
 
             if extensions_to_index.contains(&&f.file_ext.as_str()) {
+                let file_hash = murmurhash3(f.path.as_bytes());
+
                 let mut files = files_mutex.lock().unwrap();
-                files.push(f);
+                files.insert(file_hash.clone(), f.clone());
+                drop(files);
+
+                let mut to_be_indexed = to_be_indexed_mutex.lock().unwrap();
+                to_be_indexed.push(file_hash);
+                to_be_indexed.dedup();
+                println!("{:?}", to_be_indexed);
+                drop(to_be_indexed);
             }
         }
-    }
-
-    let mut files = files_mutex.lock().unwrap();
-
-    for (_, file) in files.iter_mut().enumerate() {
-        file.file_modified = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
-        *file = index_and_commit_to_db(file).clone();
     }
 
     Ok(())
@@ -299,14 +358,6 @@ fn search_db(input: String) -> SQLiteResult<Vec<File>> {
     Ok(files)
 }
 
-fn random_song(files: Vec<File>) -> Vec<File> {
-    let file = files.choose(&mut rand::thread_rng()).unwrap();
-    let mut random_files: Vec<File> = Vec::new();
-    random_files.push(file.clone());
-
-    random_files
-}
-
 fn find_song_by_hash(input: String) -> SQLiteResult<Vec<File>> {
     let query = "SELECT id, path, file_name, file_ext, title, artist, album, duration, indexed_at, accessed_at FROM `files` WHERE `id` IN (SELECT file FROM plays WHERE hash = :input) LIMIT 0, 1;";
 
@@ -345,9 +396,6 @@ fn get_file_from_hash(
     plays_mutex: Arc<Mutex<HashMap<String, File>>>,
 ) -> Option<music::File> {
     let plays = plays_mutex.lock().unwrap();
-
-    println!("{:?}", plays);
-
     match plays.get(&hash) {
         Some(file) => Some(file.clone()),
         None => None,
@@ -370,12 +418,14 @@ struct FileResponse {
 
 #[tokio::main]
 async fn serve(
-    files_mutex: Arc<std::sync::Mutex<Vec<music::File>>>,
+    files_mutex: Arc<std::sync::Mutex<std::collections::HashMap<u32, music::File>>>,
     plays_mutex: Arc<Mutex<HashMap<String, File>>>,
+    have_been_indexed_mutex: Arc<Mutex<Vec<u32>>>,
 ) {
     let plays_mutex_1 = plays_mutex.clone();
     let plays_mutex_2 = plays_mutex.clone();
     let plays_mutex_3 = plays_mutex.clone();
+    let have_been_indexed_mutex_1 = have_been_indexed_mutex.clone();
     //let conn = SQLite::initialize();
 
     // default e.g https://domain.tld
@@ -408,9 +458,30 @@ async fn serve(
 
     // domain.tld/random
     let random = warp::path!("random").and(warp::path::end()).map(move || {
+        let have_been_indexed = have_been_indexed_mutex_1.lock().unwrap();
+        let random_hash_opt = have_been_indexed.choose(&mut rand::thread_rng());
+
+        if random_hash_opt.is_none() {
+            let response = EmptyResponse {
+                status: 404,
+                message: "No files have been indexed (yet...)".to_string(),
+            };
+    
+            return warp::reply::json(&response);
+        }
+
+        let random_hash = random_hash_opt.unwrap();
         let files_mutex = files_mutex.clone();
         let files = files_mutex.lock().unwrap();
-        let random_files = random_song(files.to_vec());
+
+        let mut random_files: Vec<File> = Vec::new();
+
+        match files.get(random_hash) {
+            Some(file) => random_files.push(file.clone()),
+            _ => println!("Hash is missing from db"),
+        };
+
+        drop(files);
 
         let mut random_files_hashed: Vec<FileHashed> = Vec::new();
         for file in random_files {
@@ -418,9 +489,11 @@ async fn serve(
             random_files_hashed.push(file_hashed.clone());
 
             let plays_mutex = plays_mutex_1.clone();
-            let mut plays = plays_mutex.lock().unwrap();
 
+            // Acquire and drop mutex
+            let mut plays = plays_mutex.lock().unwrap();
             plays.insert(file_hashed.path.clone(), file.clone());
+            drop(plays);
         }
 
         let response = FileResponse {

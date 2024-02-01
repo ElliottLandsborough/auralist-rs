@@ -82,7 +82,7 @@ impl File {
         let conn = SQLite::initialize();
 
         match conn.execute(
-            "INSERT INTO files (path, file_name, file_ext, file_size, file_modified, title, artist, album, duration, indexed_at, accessed_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+            "INSERT INTO files (path, file_name, file_ext, file_size, file_modified, title, artist, album, duration, indexed_at, accessed_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
             params![
                 self.path,
                 self.file_name,
