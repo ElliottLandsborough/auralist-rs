@@ -1,5 +1,6 @@
 use rand::seq::SliceRandom;
 
+use murmurhash32::murmurhash3;
 use rusqlite::{params, Result as SQLiteResult};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -7,11 +8,9 @@ use std::convert::Infallible;
 use std::io::Empty;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
+use tantivy::doc;
 use walkdir::WalkDir;
 use warp::{http::Method, http::StatusCode, Filter, Rejection, Reply};
-use tantivy::doc;
-use murmurhash32::{murmurhash3};
-
 
 use std::thread::sleep;
 use std::time::{Duration, Instant};
@@ -53,7 +52,11 @@ fn main() {
         });
         s.spawn(|| {
             println!("Warming database with more file info...");
-            warm(files_mutex.clone(), to_be_indexed_mutex.clone(), have_been_indexed_mutex.clone());
+            warm(
+                files_mutex.clone(),
+                to_be_indexed_mutex.clone(),
+                have_been_indexed_mutex.clone(),
+            );
         });
         s.spawn(|| {
             println!("Starting periodic cleanup tasks...");
@@ -61,14 +64,22 @@ fn main() {
         });
         s.spawn(|| {
             println!("Starting web server...");
-            serve(files_mutex.clone(), plays_mutex.clone(), have_been_indexed_mutex.clone());
+            serve(
+                files_mutex.clone(),
+                plays_mutex.clone(),
+                have_been_indexed_mutex.clone(),
+            );
         });
         println!("Hello from the main... \\m/");
     });
 }
 
 #[tokio::main]
-async fn warm(files_mutex: Arc<std::sync::Mutex<std::collections::HashMap<u32, music::File>>>, to_be_indexed_mutex: Arc<Mutex<Vec<u32>>>, have_been_indexed_mutex: Arc<Mutex<Vec<u32>>>) {
+async fn warm(
+    files_mutex: Arc<std::sync::Mutex<std::collections::HashMap<u32, music::File>>>,
+    to_be_indexed_mutex: Arc<Mutex<Vec<u32>>>,
+    have_been_indexed_mutex: Arc<Mutex<Vec<u32>>>,
+) {
     loop {
         //println!("start warm");
         let mut to_be_indexed = to_be_indexed_mutex.lock().unwrap();
@@ -148,7 +159,10 @@ fn clear_plays(plays_mutex: Arc<Mutex<HashMap<String, File>>>) {
 }
 
 #[tokio::main]
-async fn index(files_mutex: Arc<std::sync::Mutex<HashMap<u32, File>>>, to_be_indexed_mutex: Arc<Mutex<Vec<u32>>>) {
+async fn index(
+    files_mutex: Arc<std::sync::Mutex<HashMap<u32, File>>>,
+    to_be_indexed_mutex: Arc<Mutex<Vec<u32>>>,
+) {
     // todo: make this a command line arg
     let directory_to_index = "./files";
 
@@ -466,7 +480,7 @@ async fn serve(
                 status: 404,
                 message: "No files have been indexed (yet...)".to_string(),
             };
-    
+
             return warp::reply::json(&response);
         }
 
