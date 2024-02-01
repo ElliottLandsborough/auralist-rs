@@ -18,4 +18,7 @@ build:
 run:
 	docker run --name auralist -p 1337:1337 -v ./files:/files -d auralist
 
-reset: build kill_if_running clean run
+pull:
+	git pull
+
+reset: pull build kill_if_running clean run
