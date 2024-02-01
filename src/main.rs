@@ -2,6 +2,7 @@ use rand::seq::SliceRandom;
 use rand::{seq, thread_rng};
 use rusqlite::{params, Result as SQLiteResult};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::convert::Infallible;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -12,6 +13,7 @@ mod database;
 use crate::database::SQLite;
 mod music;
 use crate::music::File;
+use crate::music::FileHashed;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -25,6 +27,9 @@ fn main() {
     let files: Vec<File> = Vec::new();
     let files_mutex = Arc::new(Mutex::new(files));
 
+    let plays: HashMap<String, File> = HashMap::new();
+    let plays_mutex = Arc::new(Mutex::new(plays));
+
     thread::scope(|s| {
         s.spawn(|| {
             println!("hello from the first scoped thread");
@@ -32,7 +37,7 @@ fn main() {
         });
         s.spawn(|| {
             println!("hello from the second scoped thread");
-            serve(files_mutex.clone());
+            serve(files_mutex.clone(), plays_mutex.clone());
         });
         println!("hello from the main thread");
     });
@@ -300,50 +305,18 @@ fn find_song_by_hash(input: String) -> SQLiteResult<Vec<File>> {
     Ok(files)
 }
 
-fn first_song_from_vec(files: Vec<File>) -> Result<File, &'static str> {
-    if files.len() == 1 {
-        // Restore connection from db file
-        let file = files.into_iter().nth(0).unwrap();
+fn get_file_from_hash(
+    hash: String,
+    plays_mutex: Arc<Mutex<HashMap<String, File>>>,
+) -> Option<music::File> {
+    let plays = plays_mutex.lock().unwrap();
 
-        return Ok(file);
+    println!("{:?}", plays);
+
+    match plays.get(&hash) {
+        Some(file) => Some(file.clone()),
+        None => None,
     }
-
-    Err("No files in supplied vector")
-}
-
-fn get_file_from_hash(hash: String) -> Result<File, &'static str> {
-    let files = match find_song_by_hash(hash) {
-        Ok(files) => files,
-        Err(error) => panic!("Problem with search: {:?}", error),
-    };
-
-    let file = match first_song_from_vec(files.clone()) {
-        Ok(file) => file,
-        Err(error) => panic!("Problem with search: {:?}", error),
-    };
-
-    Ok(file)
-}
-
-fn get_mime_from_hash(hash: String) -> String {
-    let file = match get_file_from_hash(hash.to_string()) {
-        Ok(file) => file,
-        Err(error) => panic!("Problem with file get: {:?}", error),
-    };
-
-    let guess = mime_guess::from_ext(&file.file_ext).first().unwrap();
-    let mime = guess.essence_str();
-
-    mime.to_string()
-}
-
-fn get_path_from_hash(hash: String) -> String {
-    let file = match get_file_from_hash(hash.to_string()) {
-        Ok(file) => file,
-        Err(error) => panic!("Problem with file get: {:?}", error),
-    };
-
-    file.path
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -357,11 +330,17 @@ struct FileResponse {
     pub status: i32,
     pub message: String,
     pub count: usize,
-    pub data: Vec<File>,
+    pub data: Vec<FileHashed>,
 }
 
 #[tokio::main]
-async fn serve(files_mutex: Arc<std::sync::Mutex<Vec<music::File>>>) {
+async fn serve(
+    files_mutex: Arc<std::sync::Mutex<Vec<music::File>>>,
+    plays_mutex: Arc<Mutex<HashMap<String, File>>>,
+) {
+    let plays_mutex_1 = plays_mutex.clone();
+    let plays_mutex_2 = plays_mutex.clone();
+    let plays_mutex_3 = plays_mutex.clone();
     //let conn = SQLite::initialize();
 
     // default e.g https://domain.tld
@@ -373,6 +352,7 @@ async fn serve(files_mutex: Arc<std::sync::Mutex<Vec<music::File>>>) {
     // domain.tld/favicon.svg
     let favicon = warp::path!("favicon.svg").and(warp::fs::file("static/favicon.svg"));
 
+    /*
     // domain.tld/search/[anything]
     let search = warp::path!("search" / String).map(|query| {
         let files = match search_db(query) {
@@ -389,19 +369,30 @@ async fn serve(files_mutex: Arc<std::sync::Mutex<Vec<music::File>>>) {
 
         warp::reply::json(&response)
     });
+    */
 
     // domain.tld/random
     let random = warp::path!("random").and(warp::path::end()).map(move || {
-        //let random_files = random_song(&files);
         let files_mutex = files_mutex.clone();
         let files = files_mutex.lock().unwrap();
         let random_files = random_song(files.to_vec());
 
+        let mut random_files_hashed: Vec<FileHashed> = Vec::new();
+        for file in random_files {
+            let file_hashed = file.clone().to_response();
+            random_files_hashed.push(file_hashed.clone());
+
+            let plays_mutex = plays_mutex_1.clone();
+            let mut plays = plays_mutex.lock().unwrap();
+
+            plays.insert(file_hashed.path.clone(), file.clone());
+        }
+
         let response = FileResponse {
             status: 200,
             message: "OK".to_string(),
-            count: random_files.len(),
-            data: random_files,
+            count: random_files_hashed.len(),
+            data: random_files_hashed,
         };
 
         warp::reply::json(&response)
@@ -410,12 +401,17 @@ async fn serve(files_mutex: Arc<std::sync::Mutex<Vec<music::File>>>) {
     // domain.tld/stream/[anything] (parses range headers)
     let stream = warp::path!("stream" / String)
         .and(filter_range())
-        .and_then(move |hash: String, range_header: String| get_range(range_header, hash))
+        .and_then(move |hash: String, range_header: String| {
+            let plays_mutex = plays_mutex_2.clone();
+            get_range(range_header, hash, plays_mutex)
+        })
         .map(with_partial_content_status);
 
     // domain.tld/stream/[anything] (when stream headers are missing)
-    let download = warp::path!("stream" / String)
-        .and_then(move |hash: String| get_range("".to_string(), hash));
+    let download = warp::path!("stream" / String).and_then(move |hash: String| {
+        let plays_mutex = plays_mutex_3.clone();
+        get_range("".to_string(), hash, plays_mutex)
+    });
 
     let cors = warp::cors()
         .allow_origins(vec![
@@ -433,7 +429,7 @@ async fn serve(files_mutex: Arc<std::sync::Mutex<Vec<music::File>>>) {
             default
                 .or(favicon)
                 .or(bundle)
-                .or(search)
+                //.or(search)
                 .or(random)
                 .or(stream)
                 .or(download),
@@ -472,11 +468,17 @@ pub fn filter_range() -> impl Filter<Extract = (String,), Error = Rejection> + C
 }
 
 /// This function retrives the range of bytes requested by the web client
-pub async fn get_range(range_header: String, hash: String) -> Result<impl warp::Reply, Rejection> {
-    internal_get_range(range_header, hash).await.map_err(|e| {
-        println!("Error in get_range: {}", e.message);
-        warp::reject()
-    })
+pub async fn get_range(
+    range_header: String,
+    hash: String,
+    plays_mutex: Arc<Mutex<HashMap<String, File>>>,
+) -> Result<impl warp::Reply, Rejection> {
+    internal_get_range(range_header, hash, plays_mutex)
+        .await
+        .map_err(|e| {
+            println!("Error in get_range: {}", e.message);
+            warp::reject()
+        })
 }
 
 /// This function adds the "206 Partial Content" header
@@ -529,9 +531,24 @@ impl From<ParseIntError> for Error {
     }
 }
 
-async fn internal_get_range(range_header: String, hash: String) -> Result<impl warp::Reply, Error> {
-    let path = get_path_from_hash(hash.clone());
-    let mime = get_mime_from_hash(hash);
+async fn internal_get_range(
+    range_header: String,
+    hash: String,
+    plays_mutex: Arc<Mutex<HashMap<String, File>>>,
+) -> Result<impl warp::Reply, Error> {
+    let file_option = get_file_from_hash(hash, plays_mutex);
+
+    if file_option.is_none() {
+        return Err(Error {
+            message: "Could not range. Hash not found.".to_string(),
+        });
+    }
+
+    let file = file_option.unwrap();
+
+    let path = &file.path;
+    let guess = mime_guess::from_ext(&file.file_ext).first().unwrap();
+    let mime = guess.essence_str();
     println!("RANGE: {}", path);
     let mut file = tokio::fs::File::open(path).await?;
     let metadata = file.metadata().await?;
@@ -564,5 +581,6 @@ async fn internal_get_range(range_header: String, hash: String) -> Result<impl w
     );
     header_map.insert("Content-Length", HeaderValue::from(byte_count));
     headers.extend(header_map);
+
     Ok(response)
 }

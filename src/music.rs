@@ -22,7 +22,26 @@ pub struct File {
     pub indexed_at: u64,
 }
 
+#[derive(Clone, Serialize, Deserialize, Debug)]
+pub struct FileHashed {
+    pub path: String,
+    pub file_name: String,
+    pub title: String,
+    pub artist: String,
+    pub album: String,
+}
+
 impl File {
+    pub fn to_response(&mut self) -> FileHashed {
+        FileHashed {
+            path: self.get_unique_id(),
+            file_name: self.file_name.clone(),
+            title: self.title.clone(),
+            artist: self.artist.clone(),
+            album: self.album.clone(),
+        }
+    }
+
     pub fn populate_from_path(path: &Path) -> File {
         let path_string = path.to_str().unwrap().to_string();
         let file_name = String::from(path.file_name().unwrap().to_string_lossy());
@@ -140,7 +159,7 @@ impl File {
         self.album = tag.title().as_deref().unwrap_or("").to_string();
     }
 
-    pub fn get_unique_id(&mut self) {
+    pub fn get_unique_id(&mut self) -> String {
         let conn = SQLite::connect();
 
         let uuid = Uuid::new_v4().to_string();
@@ -158,8 +177,8 @@ impl File {
             Err(err) => println!("Update failed: {}", err),
         }
 
-        self.path = uuid;
+        self.path = uuid.clone();
 
-        return;
+        uuid
     }
 }
