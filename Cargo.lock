@@ -67,6 +67,7 @@ dependencies = [
  "id3",
  "lofty",
  "mime_guess",
+ "rand",
  "rusqlite",
  "rust-ini",
  "serde",

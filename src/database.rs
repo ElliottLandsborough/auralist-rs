@@ -1,8 +1,6 @@
 use rusqlite::{backup, Connection as RuConnection, Result as SQLiteResult};
 use std::time::Duration;
 
-use crate::config::Settings;
-
 pub struct SQLite;
 
 impl SQLite {
@@ -25,7 +23,7 @@ impl SQLite {
         let conn = SQLite::connect();
 
         let sql = "
-        CREATE TABLE files (
+        CREATE TABLE IF NOT EXISTS files (
             id            INTEGER PRIMARY KEY,
             path          TEXT NOT NULL,
             file_name     TEXT NOT NULL,
@@ -39,60 +37,35 @@ impl SQLite {
             indexed_at    INTEGER
         );
 
-        CREATE INDEX duration ON files (duration);
+        CREATE INDEX IF NOT EXISTS duration ON files (duration);
 
-        CREATE TABLE plays (
+        CREATE TABLE IF NOT EXISTS plays (
             id        INTEGER PRIMARY KEY,
             hash      TEXT,
             time      INTEGER,
             file      INTEGER
         );
 
-        CREATE INDEX hash ON plays (hash);
-        CREATE INDEX time ON plays (time);
-        CREATE INDEX file ON plays (file);
+        CREATE INDEX IF NOT EXISTS hash ON plays (hash);
+        CREATE INDEX IF NOT EXISTS time ON plays (time);
+        CREATE INDEX IF NOT EXISTS file ON plays (file);
         ";
 
         match conn.execute_batch(sql) {
             Ok(_) => println!("Successfully created files table."),
-            Err(err) => println!("update failed: {}", err),
+            Err(err) => println!("update failed: migration 1: {}", err),
         }
 
         let conn = SQLite::connect();
 
         let sql = "
-        CREATE VIRTUAL TABLE search
+        CREATE VIRTUAL TABLE IF NOT EXISTS search
         USING FTS5(path, file_name, file_ext, title, artist, album);
         ";
 
         match conn.execute_batch(sql) {
             Ok(_) => println!("Successfully created search table."),
-            Err(err) => println!("update failed: {}", err),
+            Err(err) => println!("update failed: migration 2: {}", err),
         }
-    }
-
-    pub fn restore() -> SQLiteResult<()> {
-        let db_file = Settings::get("System", "db_file");
-        let src = RuConnection::open(db_file)?;
-        let mut dst = SQLite::connect();
-        let backup = backup::Backup::new(&src, &mut dst)?;
-        backup.run_to_completion(
-            5,
-            Duration::from_millis(0),
-            Some(SQLite::db_backup_progress),
-        )?;
-
-        println!("Restored.");
-
-        Ok(())
-    }
-
-    fn db_backup_progress(p: backup::Progress) {
-        let pagecount = f64::from(p.pagecount);
-        let remaining = f64::from(p.remaining);
-
-        let remaining = ((pagecount - remaining) / pagecount) * 100.0;
-
-        println!("Progress: {}%", remaining.round());
     }
 }

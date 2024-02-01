@@ -1,17 +1,20 @@
+use rand::seq::SliceRandom;
+use rand::{seq, thread_rng};
 use rusqlite::{params, Result as SQLiteResult};
 use serde::{Deserialize, Serialize};
 use std::convert::Infallible;
-use std::env;
 use std::path::Path;
+use std::time::{SystemTime, UNIX_EPOCH};
 use walkdir::WalkDir;
 use warp::{http::Method, http::StatusCode, Filter, Rejection, Reply};
 
 mod database;
 use crate::database::SQLite;
-mod config;
-use crate::config::{ConfigFile, Settings};
 mod music;
 use crate::music::File;
+use std::sync::mpsc::{Receiver, Sender};
+use std::sync::{Arc, Mutex};
+use std::thread;
 
 use std::{
     fs::File as StdFsFile,
@@ -19,46 +22,39 @@ use std::{
 };
 
 fn main() {
-    let args: Vec<String> = env::args().collect();
-    let config = ConfigFile::new();
+    let files: Vec<File> = Vec::new();
+    let files_mutex = Arc::new(Mutex::new(files));
 
-    if (args.len()) > 1 {
-        let command = &args[1];
-
-        match command.as_str() {
-            "init" => config.create(),
-            "serve" => serve(),
-            _ => println!("Please choose a command e.g 'init' or 'index'"),
-        }
-    }
+    thread::scope(|s| {
+        s.spawn(|| {
+            println!("hello from the first scoped thread");
+            index(files_mutex.clone());
+        });
+        s.spawn(|| {
+            println!("hello from the second scoped thread");
+            serve(files_mutex.clone());
+        });
+        println!("hello from the main thread");
+    });
 }
 
-fn index() {
-    let _conn = SQLite::initialize();
+#[tokio::main]
+async fn index(files_mutex: Arc<std::sync::Mutex<Vec<music::File>>>) {
+    //let conn = SQLite::initialize();
 
-    let conf_file = "./conf.ini";
-
-    if !Path::new(conf_file).exists() {
-        println!(
-            "Config file `{:?}` missing. Please run `init` first",
-            conf_file
-        );
-
-        return;
-    }
-
-    let directory_to_index = Settings::get("Indexer", "directory_to_index");
+    // todo: make this a command line arg
+    let directory_to_index = "./files";
 
     if !Path::new(&directory_to_index).exists() {
         println!(
-            "Directory set in `conf.ini` missing: `{:?}`",
+            "Cannot index files, directory `{:?}` does not exist",
             &directory_to_index
         );
 
         return;
     }
 
-    let directory_exclusions_file_path = Settings::get("Indexer", "directory_exclusions");
+    let directory_exclusions_file_path = "./exclusions.txt";
 
     if directory_exclusions_file_path.len() > 0
         && !Path::new(&directory_exclusions_file_path).exists()
@@ -73,13 +69,10 @@ fn index() {
 
     let directory_exclusions = lines_from_file(directory_exclusions_file_path);
 
-    let binding = Settings::get("Indexer", "extensions_to_index");
-    let extensions_to_index: Vec<&str> = binding.split(",").collect();
-
     match get_files(
-        String::from(&directory_to_index),
+        directory_to_index.to_string(),
         directory_exclusions,
-        extensions_to_index,
+        files_mutex,
     ) {
         Ok(_) => println!("Finished getting files."),
         Err(err) => println!("{}", err),
@@ -103,9 +96,9 @@ fn lines_from_file(filename: impl AsRef<Path>) -> Vec<String> {
 fn get_files(
     directory: std::string::String,
     exclusions: Vec<std::string::String>,
-    extensions: Vec<&str>,
+    files_mutex: Arc<std::sync::Mutex<Vec<music::File>>>,
 ) -> Result<(), walkdir::Error> {
-    println!("Saving files to db...");
+    println!("Walking files and saving to vector...");
 
     'entries: for entry in WalkDir::new(directory) {
         let entry = match entry {
@@ -126,16 +119,49 @@ fn get_files(
         }
 
         if !path.is_dir() {
-            let f = File::populate_from_path(&path, extensions.clone());
-            // todo: add all extensions that lofty supports, exts are now specified in conf file
-            if f.file_ext == "mp3" || f.file_ext == "flac" {
-                // renember to not use wav, its too big!
-                f.save_to_database();
+            // todo: make this a command line arg
+            let binding = "flac,wav,mp3";
+            let extensions_to_index: Vec<&str> = binding.split(",").collect();
+            let f = File::populate_from_path(&path);
+
+            if extensions_to_index.contains(&&f.file_ext.as_str()) {
+                let mut files = files_mutex.lock().unwrap();
+                files.push(f);
             }
         }
     }
 
+    println!("{:?}", "BEFORE COMMIT");
+    let mut files = files_mutex.lock().unwrap();
+    for file in &mut *files {
+        println!("{:?}", file);
+    }
+
+    for (_, file) in files.iter_mut().enumerate() {
+        file.file_modified = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        *file = index_and_commit_to_db(file).clone();
+    }
+
+    println!("{:?}", "AFTER COMMIT");
+    for file in &mut *files {
+        println!("{:?}", file);
+    }
+
     Ok(())
+}
+
+fn index_and_commit_to_db(f: &mut File) -> &mut File {
+    // https://docs.rs/lofty/latest/lofty/#supported-formats
+    if f.file_ext == "mp3" || f.file_ext == "flac" {
+        f.populate_lofty();
+    }
+
+    f.save_to_database();
+
+    f
 }
 
 fn test_db() -> SQLiteResult<()> {
@@ -234,38 +260,12 @@ fn search_db(input: String) -> SQLiteResult<Vec<File>> {
     Ok(files)
 }
 
-fn random_song() -> SQLiteResult<Vec<File>> {
-    let query = "SELECT id, path, file_name, file_ext, file_size, file_modified, title, artist, album, duration, indexed_at FROM `files` WHERE `file_ext` IN ('mp3', 'flac') AND _ROWID_ >= (abs(random()) % (SELECT max(_ROWID_) FROM `files`)) LIMIT 1;";
+fn random_song(files: Vec<File>) -> Vec<File> {
+    let file = files.choose(&mut rand::thread_rng()).unwrap();
+    let mut random_files: Vec<File> = Vec::new();
+    random_files.push(file.clone());
 
-    let conn = SQLite::connect();
-
-    let mut stmt = conn.prepare(query)?;
-
-    let rows = stmt.query_map(params![], |row| {
-        search_result_to_file(
-            row.get(0)?,
-            row.get(1)?,
-            row.get(2)?,
-            row.get(3)?,
-            row.get(4)?,
-            row.get(5)?,
-            row.get(6)?,
-            row.get(7)?,
-            row.get(8)?,
-            row.get(9)?,
-            row.get(10)?,
-        )
-    })?;
-
-    let mut files: Vec<File> = Vec::new();
-
-    for result in rows {
-        let mut file = result.unwrap();
-        file.get_unique_id();
-        files.push(file);
-    }
-
-    Ok(files)
+    random_files
 }
 
 fn find_song_by_hash(input: String) -> SQLiteResult<Vec<File>> {
@@ -361,16 +361,8 @@ struct FileResponse {
 }
 
 #[tokio::main]
-async fn serve() {
-    let _conn = SQLite::initialize();
-
-    index();
-
-    // Restore connection from db file
-    match SQLite::restore() {
-        Ok(_) => println!("Success."),
-        Err(err) => println!("{}", err),
-    }
+async fn serve(files_mutex: Arc<std::sync::Mutex<Vec<music::File>>>) {
+    //let conn = SQLite::initialize();
 
     // default e.g https://domain.tld
     let default = warp::path::end().and(warp::fs::file("static/index.html"));
@@ -399,17 +391,17 @@ async fn serve() {
     });
 
     // domain.tld/random
-    let random = warp::path!("random").map(|| {
-        let files = match random_song() {
-            Ok(files) => files,
-            Err(error) => panic!("Problem with search: {:?}", error),
-        };
+    let random = warp::path!("random").and(warp::path::end()).map(move || {
+        //let random_files = random_song(&files);
+        let files_mutex = files_mutex.clone();
+        let files = files_mutex.lock().unwrap();
+        let random_files = random_song(files.to_vec());
 
         let response = FileResponse {
             status: 200,
             message: "OK".to_string(),
-            count: files.len(),
-            data: files,
+            count: random_files.len(),
+            data: random_files,
         };
 
         warp::reply::json(&response)

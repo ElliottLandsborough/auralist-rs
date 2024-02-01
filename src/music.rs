@@ -23,7 +23,7 @@ pub struct File {
 }
 
 impl File {
-    pub fn populate_from_path(path: &Path, extensions: Vec<&str>) -> File {
+    pub fn populate_from_path(path: &Path) -> File {
         let path_string = path.to_str().unwrap().to_string();
         let file_name = String::from(path.file_name().unwrap().to_string_lossy());
         let file = StdFsFile::open(path).unwrap();
@@ -35,7 +35,7 @@ impl File {
             None => String::from(""),
         };
 
-        let mut f = File {
+        File {
             id: 0,
             path: path_string,
             file_name: file_name,
@@ -53,26 +53,15 @@ impl File {
             artist: "".to_string(),
             album: "".to_string(),
             duration: 0,
-            indexed_at: SystemTime::UNIX_EPOCH
-                .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_secs(), // this is 0
-        };
-
-        if extensions.contains(&&file_ext.as_str()) {
-            // https://docs.rs/lofty/latest/lofty/#supported-formats
-            if file_ext == "mp3" || file_ext == "flac" {
-                f.populate_lofty();
-            }
+            indexed_at: 0,
         }
-        f
     }
 
     pub fn save_to_database(&self) {
-        let conn = SQLite::connect();
+        let conn = SQLite::initialize();
 
         match conn.execute(
-            "INSERT INTO files (path, file_name, file_ext, file_size, file_modified, title, artist, album, duration, indexed_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+            "INSERT INTO files (path, file_name, file_ext, file_size, file_modified, title, artist, album, duration, indexed_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
             params![
                 self.path,
                 self.file_name,
