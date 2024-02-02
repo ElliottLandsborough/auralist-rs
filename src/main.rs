@@ -81,13 +81,11 @@ async fn warm(
     have_been_indexed_mutex: Arc<Mutex<Vec<u32>>>,
 ) {
     loop {
-        //println!("start warm");
         let mut to_be_indexed = to_be_indexed_mutex.lock().unwrap();
         let hash_to_be_indexed = to_be_indexed.pop();
         drop(to_be_indexed);
 
         if !hash_to_be_indexed.is_none() {
-            println!("we have a hash: {:?}", hash_to_be_indexed);
             let mut files = files_mutex.lock().unwrap();
 
             let file = match files.get(&hash_to_be_indexed.unwrap()) {
@@ -96,7 +94,6 @@ async fn warm(
             };
 
             if !file.is_none() {
-                println!("FILE IS NOT NONE");
                 let mut f = file.unwrap();
                 f.indexed_at = SystemTime::now()
                     .duration_since(UNIX_EPOCH)
@@ -112,7 +109,6 @@ async fn warm(
                 let mut have_been_indexed = have_been_indexed_mutex.lock().unwrap();
                 have_been_indexed.push(hash_to_be_indexed.unwrap());
                 have_been_indexed.dedup();
-                println!("{:?}", have_been_indexed);
                 drop(have_been_indexed);
             }
 
@@ -153,7 +149,6 @@ fn clear_plays(plays_mutex: Arc<Mutex<HashMap<String, File>>>) {
             // the url won't work anymore
             plays.remove(&hash);
             drop(plays);
-            println!("cleaned");
         }
     }
 }
@@ -252,7 +247,6 @@ fn get_files(
                 let mut to_be_indexed = to_be_indexed_mutex.lock().unwrap();
                 to_be_indexed.push(file_hash);
                 to_be_indexed.dedup();
-                println!("{:?}", to_be_indexed);
                 drop(to_be_indexed);
             }
         }
@@ -305,7 +299,7 @@ fn test_db() -> SQLiteResult<()> {
 }
 
 fn search_result_to_file(
-    id: i64,
+    id: u32,
     path: String,
     file_name: String,
     file_ext: String,
