@@ -5,7 +5,6 @@ use rusqlite::{params, Result as SQLiteResult};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::convert::Infallible;
-use std::io::Empty;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tantivy::doc;
@@ -44,6 +43,12 @@ fn main() {
     // murmur
     let have_been_indexed: Vec<u32> = Vec::new();
     let have_been_indexed_mutex = Arc::new(Mutex::new(have_been_indexed));
+
+    load_old_data(
+        files_mutex.clone(),
+        to_be_indexed_mutex.clone(),
+        have_been_indexed_mutex.clone(),
+    );
 
     thread::scope(|s| {
         s.spawn(|| {
@@ -115,6 +120,68 @@ async fn warm(
             drop(files);
         }
     }
+}
+
+fn load_old_data(
+    files_mutex: Arc<std::sync::Mutex<HashMap<u32, File>>>,
+    to_be_indexed_mutex: Arc<Mutex<Vec<u32>>>,
+    have_been_indexed_mutex: Arc<Mutex<Vec<u32>>>,
+) {
+    // Grab all files from the sqlite database if possible
+    println!("+ Loading old data");
+
+    for file in get_all_db_files() {
+        println!("+");
+        let mut files = files_mutex.lock().unwrap();
+        // Add it to our in memory list
+        // TODO: WHAT HAPPENS IF IT ALREADY EXISTS??
+        files.insert(file.clone().id, file.clone());
+        drop(files);
+
+        // Add them all to have been indexed list
+        let mut have_been_indexed = have_been_indexed_mutex.lock().unwrap();
+        have_been_indexed.push(file.id);
+        have_been_indexed.dedup();
+        drop(have_been_indexed);
+    }
+}
+
+// todo: where does this belong?
+fn get_all_db_files() -> Vec<File> {
+    let conn = SQLite::connect();
+    let mut stmt = conn
+        .prepare("SELECT * FROM files")
+        .expect("SQL Statement prepare fail");
+
+    let file_iter = stmt
+        .query_map(params![], |row| {
+            Ok(File {
+                id: row.get(0)?,
+                path: row.get(1)?,
+                file_name: row.get(2)?,
+                file_ext: row.get(3)?,
+                file_size: row.get(4)?,
+                file_modified: row.get(5)?,
+                title: row.get(6)?,
+                artist: row.get(7)?,
+                album: row.get(8)?,
+                duration: row.get(9)?,
+                indexed_at: row.get(10)?,
+                accessed_at: row.get(11)?,
+            })
+        })
+        .expect("Error during get_all_db_files query/iteration.");
+
+    let mut files: Vec<File> = Vec::new();
+
+    for file in file_iter {
+        match file {
+            Ok(file) => files.push(file),
+            Err(err) => println!("Could not get file from db into memory: {:?}", err),
+        }
+    }
+
+    files
 }
 
 #[tokio::main]
@@ -240,14 +307,44 @@ fn get_files(
             if extensions_to_index.contains(&&f.file_ext.as_str()) {
                 let file_hash = murmurhash3(f.path.as_bytes());
 
-                let mut files = files_mutex.lock().unwrap();
-                files.insert(file_hash.clone(), f.clone());
-                drop(files);
+                let files = files_mutex.lock().unwrap();
 
-                let mut to_be_indexed = to_be_indexed_mutex.lock().unwrap();
-                to_be_indexed.push(file_hash);
-                to_be_indexed.dedup();
-                drop(to_be_indexed);
+                let mut index_the_file = false;
+
+                let current_file_in_memory_wrapped = files.get(&file_hash);
+
+                // We don't have the file in memory
+                if current_file_in_memory_wrapped.is_none() {
+                    let mut files = files_mutex.lock().unwrap();
+
+                    // Add it to our in memory list
+                    // TODO: WHAT HAPPENS IF IT ALREADY EXISTS??
+                    files.insert(file_hash.clone(), f.clone());
+
+                    drop(files);
+
+                    // Queue to have its tags read and have it saved to the database
+                    index_the_file = true;
+                }
+
+                let current_file_in_memory = current_file_in_memory_wrapped.unwrap();
+
+                // File size has changed, index it
+                if f.clone().file_size != current_file_in_memory.file_size {
+                    index_the_file = true;
+                }
+
+                // File modified has changed, index it
+                if f.clone().file_modified != current_file_in_memory.file_modified {
+                    index_the_file = true;
+                }
+
+                if index_the_file == true {
+                    let mut to_be_indexed = to_be_indexed_mutex.lock().unwrap();
+                    to_be_indexed.push(file_hash);
+                    to_be_indexed.dedup();
+                    drop(to_be_indexed);
+                }
             }
         }
     }
@@ -500,6 +597,7 @@ async fn serve(
 
             // Acquire and drop mutex
             let mut plays = plays_mutex.lock().unwrap();
+            // TODO: WHAT HAPPENS IF IT ALREADY EXISTS??
             plays.insert(file_hashed.path.clone(), file.clone());
             drop(plays);
         }
