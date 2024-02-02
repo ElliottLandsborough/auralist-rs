@@ -10,6 +10,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use tantivy::doc;
 use walkdir::WalkDir;
 use warp::{http::Method, http::StatusCode, Filter, Rejection, Reply};
+use std::{thread, time};
 
 use std::thread::sleep;
 use std::time::{Duration, Instant};
@@ -21,7 +22,6 @@ use crate::music::File;
 use crate::music::FileHashed;
 mod search;
 use std::sync::{Arc, Mutex};
-use std::thread;
 
 use std::{
     fs::File as StdFsFile,
@@ -87,12 +87,14 @@ async fn warm(
     to_be_indexed_mutex: Arc<Mutex<Vec<u32>>>,
     have_been_indexed_mutex: Arc<Mutex<Vec<u32>>>,
 ) {
+    let mut i = 0;
     loop {
         let mut to_be_indexed = to_be_indexed_mutex.lock().unwrap();
         let hash_to_be_indexed = to_be_indexed.pop();
         drop(to_be_indexed);
 
         if !hash_to_be_indexed.is_none() {
+            println!("Locking files (warm)...");
             let mut files = files_mutex.lock().unwrap();
 
             let file = match files.get(&hash_to_be_indexed.unwrap()) {
@@ -113,13 +115,22 @@ async fn warm(
                 // todo: update search
                 //search::write_index(f)
 
+                println!("Locking have_been_indexed (warm)...");
                 let mut have_been_indexed = have_been_indexed_mutex.lock().unwrap();
                 have_been_indexed.push(hash_to_be_indexed.unwrap());
                 have_been_indexed.dedup();
+                println!("Unlocking have_been_indexed (warm)...");
                 drop(have_been_indexed);
             }
 
+            println!("Unlocking files (warm)...");
             drop(files);
+        } else {
+            i = i + 1;
+            if i == 10 {
+                println!("Sleeping for 20 seconds (warm)...");
+                thread::sleep(time::Duration::from_secs(20));
+            }
         }
     }
 }
@@ -134,16 +145,20 @@ fn load_old_data(
 
     for file in get_all_db_files() {
         println!("+");
+        println!("Locking files (load_old_data)...");
         let mut files = files_mutex.lock().unwrap();
         // Add it to our in memory list
         // TODO: WHAT HAPPENS IF IT ALREADY EXISTS??
         files.insert(file.clone().id, file.clone());
+        println!("Unlocking files (load_old_data)...");
         drop(files);
 
         // Add them all to have been indexed list
+        println!("Locking have_been_indexed (load_old_data)...");
         let mut have_been_indexed = have_been_indexed_mutex.lock().unwrap();
         have_been_indexed.push(file.id);
         have_been_indexed.dedup();
+        println!("Unlocking have_been_indexed (load_old_data)...");
         drop(have_been_indexed);
     }
 }
@@ -200,8 +215,10 @@ async fn cleanup(plays_mutex: Arc<Mutex<HashMap<String, File>>>) {
 
 fn clear_plays(plays_mutex: Arc<Mutex<HashMap<String, File>>>) {
     // Acquire and drop mutex
+    println!("Locking plays (clear_plays)...");
     let mut plays = plays_mutex.lock().unwrap();
     let iter = plays.clone().into_iter();
+    println!("Unocking plays (clear_plays)...");
     drop(plays);
 
     for (hash, file) in iter {
@@ -214,9 +231,11 @@ fn clear_plays(plays_mutex: Arc<Mutex<HashMap<String, File>>>) {
 
         // if enough time has passed for the song to have played 4 times...
         if now - accessed_at > duration * 4 {
+            println!("Locking plays (clear_plays)...");
             let mut plays = plays_mutex.lock().unwrap();
             // the url won't work anymore
             plays.remove(&hash);
+            println!("Unocking plays (clear_plays)...");
             drop(plays);
         }
     }
@@ -309,6 +328,7 @@ fn get_files(
             if extensions_to_index.contains(&&f.file_ext.as_str()) {
                 let file_hash = murmurhash3(f.path.as_bytes());
 
+                println!("Locking files (get_files)...");
                 let files = files_mutex.lock().unwrap();
 
                 let mut index_the_file = false;
@@ -317,13 +337,12 @@ fn get_files(
 
                 // We don't have the file in memory
                 if current_file_in_memory_wrapped.is_none() {
+                    println!("Locking files (get_files)...");
                     let mut files = files_mutex.lock().unwrap();
 
                     // Add it to our in memory list
                     // TODO: WHAT HAPPENS IF IT ALREADY EXISTS??
                     files.insert(file_hash.clone(), f.clone());
-
-                    drop(files);
 
                     // Queue to have its tags read and have it saved to the database
                     index_the_file = true;
@@ -342,13 +361,16 @@ fn get_files(
                 }
 
                 if index_the_file == true {
+                    println!("Locking to_be_indexed (get_files)...");
                     let mut to_be_indexed = to_be_indexed_mutex.lock().unwrap();
                     to_be_indexed.push(file_hash);
                     to_be_indexed.dedup();
+                    println!("Unlocking to_be_indexed (get_files)...");
                     drop(to_be_indexed);
                 }
             }
         }
+        println!("END (get_files)...");
     }
 
     Ok(())
@@ -502,11 +524,16 @@ fn get_file_from_hash(
     hash: String,
     plays_mutex: Arc<Mutex<HashMap<String, File>>>,
 ) -> Option<music::File> {
+    println!("Locking get_file_from_hash (plays)...");
     let plays = plays_mutex.lock().unwrap();
-    match plays.get(&hash) {
+    let result = match plays.get(&hash) {
         Some(file) => Some(file.clone()),
         None => None,
-    }
+    };
+
+    println!("END (get_file_from_hash)...");
+
+    return result;
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -564,6 +591,7 @@ async fn serve(
 
     // domain.tld/random
     let random = warp::path!("random").and(warp::path::end()).map(move || {
+        println!("Locking have_been_indexed_mutex_1 (route:random)...");
         let have_been_indexed = have_been_indexed_mutex_1.lock().unwrap();
         let random_hash_opt = have_been_indexed.choose(&mut rand::thread_rng());
 
@@ -597,9 +625,11 @@ async fn serve(
             let plays_mutex = plays_mutex_1.clone();
 
             // Acquire and drop mutex
+            println!("Locking plays (serve)...");
             let mut plays = plays_mutex.lock().unwrap();
             // TODO: WHAT HAPPENS IF IT ALREADY EXISTS??
             plays.insert(file_hashed.path.clone(), file.clone());
+            println!("Unlocking plays (serve)...");
             drop(plays);
         }
 
@@ -610,7 +640,8 @@ async fn serve(
             data: random_files_hashed,
         };
 
-        warp::reply::json(&response)
+        println!("END (route:random)...");
+        return warp::reply::json(&response)
     });
 
     // domain.tld/stream/[anything] (parses range headers)
