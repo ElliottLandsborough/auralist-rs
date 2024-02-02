@@ -299,7 +299,7 @@ fn get_files(
 
         if !path.is_dir() {
             // todo: make this a command line arg
-            let binding = "flac,wav,mp3";
+            let binding = "flac,mp3";
 
             let extensions_to_index: Vec<&str> = binding.split(",").collect();
             let f = File::populate_from_path(&path);
