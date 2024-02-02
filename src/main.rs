@@ -44,6 +44,8 @@ fn main() {
     let have_been_indexed: Vec<u32> = Vec::new();
     let have_been_indexed_mutex = Arc::new(Mutex::new(have_been_indexed));
 
+    SQLite::initialize();
+
     load_old_data(
         files_mutex.clone(),
         to_be_indexed_mutex.clone(),
@@ -531,7 +533,6 @@ async fn serve(
     let plays_mutex_2 = plays_mutex.clone();
     let plays_mutex_3 = plays_mutex.clone();
     let have_been_indexed_mutex_1 = have_been_indexed_mutex.clone();
-    //let conn = SQLite::initialize();
 
     // default e.g https://domain.tld
     let default = warp::path::end().and(warp::fs::file("static/index.html"));
