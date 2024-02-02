@@ -51,6 +51,7 @@ make reset
 sudo mount -t cifs -o ro,guest,vers=1.0 //192.168.769.857/music /files
 ```
 ### Todo
+- constantly list counts of queues...
 - async worker process to index all changes all the time
 - set async worker to low priority somehow
 - make milkdrop respond properly
