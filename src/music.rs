@@ -56,6 +56,8 @@ impl File {
             None => String::from(""),
         };
 
+        println!("--- HASH {:?} ---", murmurhash3(path_string.as_bytes()));
+
         File {
             id: murmurhash3(path_string.as_bytes()),
             path: path_string,
@@ -83,7 +85,7 @@ impl File {
         let conn = SQLite::initialize();
 
         match conn.execute(
-            "INSERT INTO files (id, path, file_name, file_ext, file_size, file_modified, title, artist, album, duration, indexed_at, accessed_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+            "INSERT OR REPLACE INTO files (id, path, file_name, file_ext, file_size, file_modified, title, artist, album, duration, indexed_at, accessed_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
             params![
                 self.id,
                 self.path,
@@ -100,7 +102,7 @@ impl File {
             ],
         ) {
             Ok(_) => println!("Inserting into files..."),
-            Err(err) => println!("Update failed: {}", err),
+            Err(err) => println!("Update failed (files): {}", err),
         }
 
         match conn.execute(
@@ -115,7 +117,7 @@ impl File {
             ],
         ) {
             Ok(_) => println!("Inserting into search..."),
-            Err(err) => println!("Update failed: {}", err),
+            Err(err) => println!("Update failed (search): {}", err),
         }
     }
 
