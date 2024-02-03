@@ -7,10 +7,10 @@ use std::collections::HashMap;
 use std::convert::Infallible;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
+use std::{thread, time};
 use tantivy::doc;
 use walkdir::WalkDir;
 use warp::{http::Method, http::StatusCode, Filter, Rejection, Reply};
-use std::{thread, time};
 
 use std::thread::sleep;
 use std::time::{Duration, Instant};
@@ -64,7 +64,11 @@ fn main() {
         });
         s.spawn(|| {
             println!("Indexing basic file information...");
-            index(files_mutex.clone(), to_be_indexed_mutex.clone());
+            index(
+                files_mutex.clone(),
+                to_be_indexed_mutex.clone(),
+                have_been_indexed_mutex.clone(),
+            );
         });
         s.spawn(|| {
             println!("Warming database with more file info...");
@@ -253,7 +257,7 @@ async fn cleanup(plays_mutex: Arc<Mutex<HashMap<String, File>>>) {
 fn clear_plays(plays_mutex: Arc<Mutex<HashMap<String, File>>>) {
     // Acquire and drop mutex
     println!("Locking plays (clear_plays)...");
-    let mut plays = plays_mutex.lock().unwrap();
+    let plays = plays_mutex.lock().unwrap();
     let iter = plays.clone().into_iter();
     println!("Unocking plays (clear_plays)...");
     drop(plays);
@@ -282,6 +286,7 @@ fn clear_plays(plays_mutex: Arc<Mutex<HashMap<String, File>>>) {
 async fn index(
     files_mutex: Arc<std::sync::Mutex<HashMap<u32, File>>>,
     to_be_indexed_mutex: Arc<Mutex<Vec<u32>>>,
+    have_been_indexed_mutex: Arc<Mutex<Vec<u32>>>,
 ) {
     // todo: make this a command line arg
     let directory_to_index = "./files";
@@ -315,6 +320,7 @@ async fn index(
         directory_exclusions,
         files_mutex,
         to_be_indexed_mutex,
+        have_been_indexed_mutex,
     ) {
         Ok(_) => println!("Finished getting files."),
         Err(err) => println!("{}", err),
@@ -334,10 +340,11 @@ fn get_files(
     exclusions: Vec<std::string::String>,
     files_mutex: Arc<std::sync::Mutex<HashMap<u32, File>>>,
     to_be_indexed_mutex: Arc<Mutex<Vec<u32>>>,
+    have_been_indexed_mutex: Arc<Mutex<Vec<u32>>>,
 ) -> Result<(), walkdir::Error> {
     println!("Walking files and saving to vector...");
-    let files_mutex_1 = files_mutex.clone();
-    let files_mutex_2 = files_mutex.clone();
+
+    let cloned_files_mutex = files_mutex.clone();
 
     'entries: for entry in WalkDir::new(directory) {
         let entry = match entry {
@@ -369,48 +376,60 @@ fn get_files(
             if extensions_to_index.contains(&&f.file_ext.as_str()) {
                 let file_hash = murmurhash3(f.path.as_bytes());
 
-                println!("Locking files1 (get_files)...");
-                let files_mutex_1 = files_mutex_1.clone();
-                let files = files_mutex_1.lock().unwrap();
-
                 let mut index_the_file = false;
 
-                let current_file_in_memory_wrapped = files.get(&file_hash);
+                let have_been_indexed = have_been_indexed_mutex.lock().unwrap();
+                let current_file_has_been_indexed =
+                    match have_been_indexed.binary_search(&file_hash) {
+                        Ok(_u) => true,
+                        Err(_e) => false,
+                    };
+                drop(have_been_indexed);
 
-                // We don't have the file in memory
-                if current_file_in_memory_wrapped.is_none() {
-                    println!("Locking files2 (get_files)...");
-                    let files_mutex_2 = files_mutex_2.clone();
-                    let mut files = files_mutex_2.lock().unwrap();
-
-                    // Add it to our in memory list
-                    // TODO: WHAT HAPPENS IF IT ALREADY EXISTS??
+                // The file is not marked as indexed
+                if !current_file_has_been_indexed {
+                    println!("Locking files (get_files1)...");
+                    let mut files = cloned_files_mutex.lock().unwrap();
                     files.insert(file_hash.clone(), f.clone());
-
-                    // Queue to have its tags read and have it saved to the database
+                    println!("Unlocking files (get_files1)...");
+                    drop(files);
                     index_the_file = true;
                 }
 
-                let current_file_in_memory = current_file_in_memory_wrapped.unwrap();
+                println!("Locking files (get_files2)...");
+                let files_mutex = files_mutex.clone();
+                let files = files_mutex.lock().unwrap();
 
-                // File size has changed, index it
-                if f.clone().file_size != current_file_in_memory.file_size {
-                    index_the_file = true;
+                let current_file_in_memory_result = match files.get(&file_hash) {
+                    Some(file) => Some(file.clone()),
+                    _ => None,
+                };
+
+                drop(files);
+
+                if !current_file_in_memory_result.is_none() {
+                    let current_file_in_memory = current_file_in_memory_result.unwrap();
+                    // File size has changed, index it
+                    if f.clone().file_size != current_file_in_memory.file_size {
+                        index_the_file = true;
+                    }
+
+                    // File modified has changed, index it
+                    if f.clone().file_modified != current_file_in_memory.file_modified {
+                        index_the_file = true;
+                    }
+
+                    if index_the_file == true {
+                        println!("Locking to_be_indexed (get_files)...");
+                        let mut to_be_indexed = to_be_indexed_mutex.lock().unwrap();
+                        to_be_indexed.push(file_hash);
+                        to_be_indexed.dedup();
+                        println!("Unlocking to_be_indexed (get_files)...");
+                        drop(to_be_indexed);
+                    }
                 }
 
-                // File modified has changed, index it
-                if f.clone().file_modified != current_file_in_memory.file_modified {
-                    index_the_file = true;
-                }
-
-                if index_the_file == true {
-                    println!("Locking to_be_indexed (get_files)...");
-                    let mut to_be_indexed = to_be_indexed_mutex.lock().unwrap();
-                    to_be_indexed.push(file_hash);
-                    to_be_indexed.dedup();
-                    println!("Unlocking to_be_indexed (get_files)...");
-                    drop(to_be_indexed);
-                }
+                println!("Unlocking files (get_files2)...");
             }
         }
         println!("END (get_files)...");
@@ -684,7 +703,7 @@ async fn serve(
         };
 
         println!("END (route:random)...");
-        return warp::reply::json(&response)
+        return warp::reply::json(&response);
     });
 
     // domain.tld/stream/[anything] (parses range headers)
@@ -828,7 +847,7 @@ async fn internal_get_range(
     let file_option = get_file_from_hash(hash, plays_mutex);
 
     if file_option.is_none() {
-        // Todo: return 404 here instead of 50
+        // Todo: return 404 here instead of 500
         return Err(Error {
             message: "Could not range. Hash not found.".to_string(),
         });

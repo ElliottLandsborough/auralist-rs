@@ -65,7 +65,10 @@ impl File {
         };
 
         println!("--- Modified time... ---");
-        let file_mtime = modified_system_time.duration_since(UNIX_EPOCH).unwrap().as_secs();
+        let file_mtime = modified_system_time
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
 
         println!("--- Create struct from info... ---");
         let f = File {
