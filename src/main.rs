@@ -54,7 +54,7 @@ fn main() {
 
     thread::scope(|s| {
         s.spawn(|| {
-            println!("Indexing basic file information...");
+            println!("Logging queues...");
             log_queues(
                 files_mutex.clone(),
                 plays_mutex.clone(),
