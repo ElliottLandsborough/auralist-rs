@@ -11,7 +11,7 @@ clean:
 pull:
 	docker pull scruples/auralist:latest
 
-build: 
+build:
 	docker build -t auralist:latest .
 	docker tag auralist:latest scruples/auralist:latest
 	docker push scruples/auralist:latest
