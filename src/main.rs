@@ -189,7 +189,6 @@ fn load_old_data(
         println!("Locking files (load_old_data)...");
         let mut files = files_mutex.lock().unwrap();
         // Add it to our in memory list
-        // TODO: WHAT HAPPENS IF IT ALREADY EXISTS??
         files.insert(file.clone().id, file.clone());
         println!("Unlocking files (load_old_data)...");
         drop(files);
@@ -275,8 +274,14 @@ fn clear_plays(plays_mutex: Arc<Mutex<HashMap<String, File>>>) {
             println!("Locking plays (clear_plays)...");
             let mut plays = plays_mutex.lock().unwrap();
             // the url won't work anymore
+            println!("Removing a play...");
+            println!("Now: {:?}", now);
+            println!("Accesed at: {:?}", accessed_at);
+            println!("Duration: {:?}", duration);
+            println!("Duration*4: {:?}", duration * 4);
+
             plays.remove(&hash);
-            println!("Unocking plays (clear_plays)...");
+            println!("Unlocking plays (clear_plays)...");
             drop(plays);
         }
     }
@@ -689,8 +694,9 @@ async fn serve(
             // Acquire and drop mutex
             println!("Locking plays (serve)...");
             let mut plays = plays_mutex.lock().unwrap();
-            // TODO: WHAT HAPPENS IF IT ALREADY EXISTS??
-            plays.insert(file_hashed.path.clone(), file.clone());
+            let mut file = file.clone();
+            file.accessed_at = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
+            plays.insert(file_hashed.path.clone(), file);
             println!("Unlocking plays (serve)...");
             drop(plays);
         }
