@@ -114,7 +114,7 @@ async fn log_queues(
         drop(have_been_indexed_mutex);
 
         println!("Sleeping for 10 seconds (log_queues)...");
-        thread::sleep(time::Duration::from_secs(20));
+        thread::sleep(time::Duration::from_secs(10));
     }
 }
 
@@ -336,6 +336,8 @@ fn get_files(
     to_be_indexed_mutex: Arc<Mutex<Vec<u32>>>,
 ) -> Result<(), walkdir::Error> {
     println!("Walking files and saving to vector...");
+    let files_mutex_1 = files_mutex.clone();
+    let files_mutex_2 = files_mutex.clone();
 
     'entries: for entry in WalkDir::new(directory) {
         let entry = match entry {
@@ -360,13 +362,16 @@ fn get_files(
             let binding = "flac,mp3";
 
             let extensions_to_index: Vec<&str> = binding.split(",").collect();
+
+            println!("Run populate_from_path (get_files)...");
             let f = File::populate_from_path(&path);
 
             if extensions_to_index.contains(&&f.file_ext.as_str()) {
                 let file_hash = murmurhash3(f.path.as_bytes());
 
-                println!("Locking files (get_files)...");
-                let files = files_mutex.lock().unwrap();
+                println!("Locking files1 (get_files)...");
+                let files_mutex_1 = files_mutex_1.clone();
+                let files = files_mutex_1.lock().unwrap();
 
                 let mut index_the_file = false;
 
@@ -374,8 +379,9 @@ fn get_files(
 
                 // We don't have the file in memory
                 if current_file_in_memory_wrapped.is_none() {
-                    println!("Locking files (get_files)...");
-                    let mut files = files_mutex.lock().unwrap();
+                    println!("Locking files2 (get_files)...");
+                    let files_mutex_2 = files_mutex_2.clone();
+                    let mut files = files_mutex_2.lock().unwrap();
 
                     // Add it to our in memory list
                     // TODO: WHAT HAPPENS IF IT ALREADY EXISTS??

@@ -58,27 +58,34 @@ impl File {
 
         println!("--- HASH {:?} ---", murmurhash3(path_string.as_bytes()));
 
-        File {
+        println!("--- System time... ---");
+        let modified_system_time = match file.metadata().unwrap().modified() {
+            Ok(modified_system_time) => modified_system_time,
+            Err(_) => SystemTime::now(),
+        };
+
+        println!("--- Modified time... ---");
+        let file_mtime = modified_system_time.duration_since(UNIX_EPOCH).unwrap().as_secs();
+
+        println!("--- Create struct from info... ---");
+        let f = File {
             id: murmurhash3(path_string.as_bytes()),
             path: path_string,
             file_name: file_name,
             file_ext: file_ext.clone(),
             file_size: file.metadata().unwrap().len(),
-            file_modified: file
-                .metadata()
-                .unwrap()
-                .modified()
-                .expect("file mtime could not be read")
-                .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_secs(),
+            file_modified: file_mtime,
             title: "".to_string(),
             artist: "".to_string(),
             album: "".to_string(),
             duration: 0,
             indexed_at: 0,
             accessed_at: 0,
-        }
+        };
+
+        println!("--- Return struct... ---");
+
+        return f;
     }
 
     pub fn save_to_database(&self) {
