@@ -55,6 +55,15 @@ fn main() {
     thread::scope(|s| {
         s.spawn(|| {
             println!("Indexing basic file information...");
+            log_queues(
+                files_mutex.clone(),
+                plays_mutex.clone(),
+                to_be_indexed_mutex.clone(),
+                have_been_indexed_mutex.clone(),
+            );
+        });
+        s.spawn(|| {
+            println!("Indexing basic file information...");
             index(files_mutex.clone(), to_be_indexed_mutex.clone());
         });
         s.spawn(|| {
@@ -79,6 +88,34 @@ fn main() {
         });
         println!("Hello from the main... \\m/");
     });
+}
+
+#[tokio::main]
+async fn log_queues(
+    files_mutex: Arc<std::sync::Mutex<std::collections::HashMap<u32, music::File>>>,
+    plays_mutex: Arc<Mutex<HashMap<String, File>>>,
+    to_be_indexed_mutex: Arc<Mutex<Vec<u32>>>,
+    have_been_indexed_mutex: Arc<Mutex<Vec<u32>>>,
+) {
+    loop {
+        let files_mutex = files_mutex.lock().unwrap();
+        let plays_mutex = plays_mutex.lock().unwrap();
+        let to_be_indexed_mutex = to_be_indexed_mutex.lock().unwrap();
+        let have_been_indexed_mutex = have_been_indexed_mutex.lock().unwrap();
+
+        println!("Files: {:?}", files_mutex.len());
+        println!("Plays: {:?}", plays_mutex.len());
+        println!("To be indexed: {:?}", to_be_indexed_mutex.len());
+        println!("Have been indexed: {:?}", have_been_indexed_mutex.len());
+
+        drop(files_mutex);
+        drop(plays_mutex);
+        drop(to_be_indexed_mutex);
+        drop(have_been_indexed_mutex);
+
+        println!("Sleeping for 10 seconds (log_queues)...");
+        thread::sleep(time::Duration::from_secs(20));
+    }
 }
 
 #[tokio::main]
