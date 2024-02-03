@@ -1,10 +1,13 @@
 use std::path::Path;
 
+/*
 use tantivy::collector::{Count, TopDocs};
 use tantivy::query::FuzzyTermQuery;
 use tantivy::schema::*;
 use tantivy::{doc, Index, IndexWriter, ReloadPolicy};
+*/
 
+/*
 pub fn write_index() -> tantivy::Result<()> {
     let mut schema_builder = Schema::builder();
     let file_name = schema_builder.add_text_field("file_name", TEXT | STORED);
@@ -28,6 +31,7 @@ pub fn write_index() -> tantivy::Result<()> {
 
     Ok(())
 }
+*/
 
 /*
 fn anything() {
