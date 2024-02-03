@@ -46,11 +46,7 @@ fn main() {
 
     SQLite::initialize();
 
-    load_old_data(
-        files_mutex.clone(),
-        to_be_indexed_mutex.clone(),
-        have_been_indexed_mutex.clone(),
-    );
+    load_old_data(files_mutex.clone(), have_been_indexed_mutex.clone());
 
     thread::scope(|s| {
         s.spawn(|| {
@@ -178,7 +174,6 @@ async fn warm(
 
 fn load_old_data(
     files_mutex: Arc<std::sync::Mutex<HashMap<u32, File>>>,
-    to_be_indexed_mutex: Arc<Mutex<Vec<u32>>>,
     have_been_indexed_mutex: Arc<Mutex<Vec<u32>>>,
 ) {
     // Grab all files from the sqlite database if possible
@@ -623,10 +618,11 @@ async fn serve(
     plays_mutex: Arc<Mutex<HashMap<String, File>>>,
     have_been_indexed_mutex: Arc<Mutex<Vec<u32>>>,
 ) {
+    println!("SERVING");
     let plays_mutex_1 = plays_mutex.clone();
     let plays_mutex_2 = plays_mutex.clone();
     let plays_mutex_3 = plays_mutex.clone();
-    let have_been_indexed_mutex_1 = have_been_indexed_mutex.clone();
+    let have_been_indexed_mutex = have_been_indexed_mutex.clone();
 
     // default e.g https://domain.tld
     let default = warp::path::end().and(warp::fs::file("static/index.html"));
@@ -658,11 +654,12 @@ async fn serve(
 
     // domain.tld/random
     let random = warp::path!("random").and(warp::path::end()).map(move || {
-        println!("Locking have_been_indexed_mutex_1 (route:random)...");
-        let have_been_indexed = have_been_indexed_mutex_1.lock().unwrap();
-        let random_hash_opt = have_been_indexed.choose(&mut rand::thread_rng());
+        //let random = warp::path!("random").and_then({
+        let m = Arc::clone(&have_been_indexed_mutex);
 
-        if random_hash_opt.is_none() {
+        let random_hash = random_hash(m);
+
+        if random_hash == 0 {
             let response = EmptyResponse {
                 status: 404,
                 message: "No files have been indexed (yet...)".to_string(),
@@ -671,13 +668,12 @@ async fn serve(
             return warp::reply::json(&response);
         }
 
-        let random_hash = random_hash_opt.unwrap();
         let files_mutex = files_mutex.clone();
         let files = files_mutex.lock().unwrap();
 
         let mut random_files: Vec<File> = Vec::new();
 
-        match files.get(random_hash) {
+        match files.get(&random_hash) {
             Some(file) => random_files.push(file.clone()),
             _ => println!("Hash is missing from db"),
         };
@@ -695,7 +691,10 @@ async fn serve(
             println!("Locking plays (serve)...");
             let mut plays = plays_mutex.lock().unwrap();
             let mut file = file.clone();
-            file.accessed_at = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
+            file.accessed_at = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs();
             plays.insert(file_hashed.path.clone(), file);
             println!("Unlocking plays (serve)...");
             drop(plays);
@@ -897,4 +896,17 @@ async fn internal_get_range(
     headers.extend(header_map);
 
     Ok(response)
+}
+
+fn random_hash(have_been_indexed_mutex: Arc<Mutex<Vec<u32>>>) -> u32 {
+    println!("Locking have_been_indexed_mutex (random_hash)...");
+    let have_been_indexed = have_been_indexed_mutex.lock().unwrap();
+    let random_hash_opt = have_been_indexed.choose(&mut rand::thread_rng());
+
+    let hash = match random_hash_opt {
+        Some(random_hash_opt) => u32::from(random_hash_opt.clone()),
+        None => 0,
+    };
+
+    return hash;
 }
