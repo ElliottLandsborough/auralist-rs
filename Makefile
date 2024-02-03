@@ -17,6 +17,7 @@ build:
 	docker push scruples/auralist:latest
 
 run:
+	docker rm auralist || true
 	docker run --name auralist -p 1337:1337 -v ./files:/files -v ${PWD}/auralist.sqlite:/auralist.sqlite -v ${PWD}/exclusions.txt:/exclusions.txt -d scruples/auralist
 
 reset: pull kill_if_running run
