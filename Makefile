@@ -8,17 +8,15 @@ kill_if_running:
 clean:
 	docker system prune -f
 
-# WARNING: Indexing will delete old index
-index:
-	cargo run index
+pull:
+	docker pull scruples/auralist:latest
 
 build: 
 	docker build -t auralist:latest .
+	docker tag auralist:latest scruples/auralist:latest
+	docker push scruples/auralist:latest
 
 run:
 	docker run --name auralist -p 1337:1337 -v ./files:/files -v ${PWD}/auralist.sqlite:/auralist.sqlite -v ${PWD}/exclusions.txt:/exclusions.txt -d auralist
 
-pull:
-	git pull
-
-reset: pull build kill_if_running clean run
+reset: pull kill_if_running run
