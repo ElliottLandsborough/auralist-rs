@@ -253,7 +253,7 @@ fn clear_plays(plays_mutex: Arc<Mutex<HashMap<String, File>>>) {
     println!("Locking plays (clear_plays)...");
     let plays = plays_mutex.lock().unwrap();
     let iter = plays.clone().into_iter();
-    println!("Unocking plays (clear_plays)...");
+    println!("Unlocking plays (clear_plays)...");
     drop(plays);
 
     for (hash, file) in iter {
