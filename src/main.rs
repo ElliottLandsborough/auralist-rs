@@ -654,7 +654,6 @@ async fn serve(
 
     // domain.tld/random
     let random = warp::path!("random").and(warp::path::end()).map(move || {
-        //let random = warp::path!("random").and_then({
         let m = Arc::clone(&have_been_indexed_mutex);
 
         let random_hash = random_hash(m);
