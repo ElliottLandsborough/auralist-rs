@@ -16,10 +16,8 @@ class HelloWorld extends React.Component {
   getInitialState() {
     return {
       howl: false,
-      title: false,
-      artist: false,
-      album: false,
       file: false,
+      ext: false,
       playing: false,
       analyser: false,
       context: false,
@@ -115,22 +113,13 @@ class HelloWorld extends React.Component {
       if (this.status == 200) {
         let resp = this.response;
         let obj = JSON.parse(resp); 
-        const title = obj.data[0].title;
-        const artist = obj.data[0].artist;
-        const album = obj.data[0].album;
-        const file = obj.data[0].file_name;
+        const path = obj.data[0].path;
+        const ext = obj.data[0].ext;
         self.setState({
-          artist: artist.length > 0 ? artist : false,
-          title: title.length > 0 ? title : false,
-          album: album.length > 0 ? album : false,
-          file: file.length > 0 ? file : false,
+          path: path,
+          ext: ext,
         });
-
         let url = self.getUrl('stream/' + obj.data[0].path);
-
-        let re = /(?:\.([^.]+))?$/;
-        let ext = re.exec(file)[1];
-
         self.play(url, ext);
       }
       self.setState({thinking: false});
@@ -139,31 +128,6 @@ class HelloWorld extends React.Component {
   }
 
   render() {
-    let file;
-    if (this.state.file) {
-      file = <p>File: <span id="file">{this.state.file}</span></p>
-    }
-
-    let title;
-    if (this.state.title) {
-      title = <p>Title: <span id="title">{this.state.title}</span></p>
-    }
-
-    let artist;
-    if (this.state.artist) {
-      artist = <p>Artist: <span id="artist">{this.state.artist}</span></p>
-    }
-
-    let album;
-    if (this.state.album) {
-      album = <p>Album: <span id="album">{this.state.album}</span></p>
-    }
-
-    let stop;
-    if (this.state.playing) {
-      stop = <a onClick={this.handleStopClick.bind(this)} className="button stop">Stop</a>
-    }
-
     let milkDrop;
     if (this.state.playing) {
       milkDrop = (
@@ -190,12 +154,7 @@ class HelloWorld extends React.Component {
           {playNextSong}
           {stop}
         </div>
-        {file}
-        {title}
-        {artist}
-        {album}
         <div className="search">
-
         </div>
         {milkDrop}
       </div>

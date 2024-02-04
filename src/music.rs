@@ -27,20 +27,14 @@ pub struct File {
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct FileHashed {
     pub path: String,
-    pub file_name: String,
-    pub title: String,
-    pub artist: String,
-    pub album: String,
+    pub ext: String,
 }
 
 impl File {
     pub fn to_response(&mut self) -> FileHashed {
         FileHashed {
             path: self.get_unique_id(),
-            file_name: self.file_name.clone(),
-            title: self.title.clone(),
-            artist: self.artist.clone(),
-            album: self.album.clone(),
+            ext: self.file_ext.clone(),
         }
     }
 
