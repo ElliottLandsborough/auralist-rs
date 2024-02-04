@@ -104,7 +104,6 @@ export default class Milkdrop extends React.Component {
           width={this.props.width}
           ref={node => (this._canvasNode = node)}
         />
-        <p>{this.state.preset.name}</p>
         <button onClick={this.handleChangeClick.bind(this)}>Change preset</button>
       </div>
     );
