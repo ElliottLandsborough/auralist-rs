@@ -15,6 +15,9 @@ class HelloWorld extends React.Component {
 
   getInitialState() {
     return {
+      enableVisuals: false,
+      width: 0,
+      height: 0,
       howl: false,
       file: false,
       ext: false,
@@ -67,6 +70,11 @@ class HelloWorld extends React.Component {
         audio: isPlaying ? this.state.howl._soundById(this.state.soundID) : false
       }
     );
+  }
+
+  enableVisualsHandler(event) {
+    console.log(event);
+    console.log('hello world');
   }
 
   stop() {
@@ -129,11 +137,11 @@ class HelloWorld extends React.Component {
 
   render() {
     let milkDrop;
-    if (this.state.playing) {
+    if (this.state.playing && this.state.enableVisuals) {
       milkDrop = (
         <MilkDrop
-          width="400"
-          height="300"
+          width={this.state.width}
+          height={this.state.height}
           context={this.state.context}
           analyser={this.state.analyser}
           audio={this.state.audio}
@@ -144,12 +152,14 @@ class HelloWorld extends React.Component {
 
     let playNextSong;
     if (!this.state.thinking) {
-      playNextSong = (<a onClick={this.state.thinking ? null : this.handleRandomClick.bind(this)} className="button play">Play / next</a>)
+      playNextSong = (<a onClick={this.state.thinking ? null : this.handleRandomClick.bind(this)} className="play">START / NEXT</a>)
     }
+
+    let stop = (<a onClick={this.state.thinking ? null : this.handleStopClick.bind(this)} className="stop">STOP</a>)
 
     return (
       <div className="container">
-        <h1>randomsound.uk</h1>
+        <div class="control" onClick={this.enableVisualsHandler}>enable</div>
         <div className="controls">
           {playNextSong}
           {stop}
