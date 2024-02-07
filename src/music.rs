@@ -22,6 +22,7 @@ pub struct File {
     pub duration: u64,
     pub indexed_at: u64,
     pub accessed_at: u64,
+    pub parse_fail: bool,
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
@@ -78,6 +79,7 @@ impl File {
             duration: 0,
             indexed_at: 0,
             accessed_at: 0,
+            parse_fail: false,
         };
 
         println!("--- Return struct... ---");
@@ -89,7 +91,7 @@ impl File {
         let conn = SQLite::initialize();
 
         match conn.execute(
-            "INSERT OR REPLACE INTO files (id, path, file_name, file_ext, file_size, file_modified, title, artist, album, duration, indexed_at, accessed_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
+            "INSERT OR REPLACE INTO files (id, path, file_name, file_ext, file_size, file_modified, title, artist, album, duration, indexed_at, accessed_at, parse_fail) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
             params![
                 self.id,
                 self.path,
@@ -102,7 +104,8 @@ impl File {
                 self.album,
                 self.duration,
                 self.indexed_at,
-                self.accessed_at
+                self.accessed_at,
+                self.parse_fail,
             ],
         ) {
             Ok(_) => println!("Inserting into files..."),
@@ -131,8 +134,9 @@ impl File {
             match Probe::open(path).expect("ERROR: Bad path provided!").read() {
                 Ok(file) => file,
                 Err(error) => {
+                    self.parse_fail = true;
                     println!(
-                        "Error: Can't parse flac `{}`. Error: {}",
+                        "Error: Can't parse file `{}`. Error: {}",
                         self.path,
                         error.to_string()
                     );

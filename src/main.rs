@@ -146,11 +146,15 @@ async fn warm(
                     .unwrap()
                     .as_secs();
                 f = index_and_commit_to_db(&mut f).clone();
-                //files.(hash_to_be_indexed.unwrap(), f);
-                *files.get_mut(&hash_to_be_indexed.unwrap()).unwrap() = f;
 
-                // todo: update search
-                //search::write_index(f)
+                if f.clone().parse_fail {
+                    files.remove(&hash_to_be_indexed.unwrap());
+                } else {
+                    *files.get_mut(&hash_to_be_indexed.unwrap()).unwrap() = f;
+
+                    // todo: update search
+                    //search::write_index(f)
+                }
 
                 println!("Locking have_been_indexed (warm)...");
                 let mut have_been_indexed = have_been_indexed_mutex.lock().unwrap();
@@ -220,6 +224,7 @@ fn get_all_db_files() -> Vec<File> {
                 duration: row.get(9)?,
                 indexed_at: row.get(10)?,
                 accessed_at: row.get(11)?,
+                parse_fail: row.get(12)?,
             })
         })
         .expect("Error during get_all_db_files query/iteration.");
@@ -444,7 +449,9 @@ fn index_and_commit_to_db(f: &mut File) -> &mut File {
         f.populate_lofty();
     }
 
-    f.save_to_database();
+    if !f.parse_fail {
+        f.save_to_database();
+    }
 
     f
 }
@@ -468,6 +475,7 @@ fn test_db() -> SQLiteResult<()> {
             duration: row.get(9)?,
             indexed_at: row.get(10)?,
             accessed_at: row.get(11)?,
+            parse_fail: row.get(12)?,
         })
     })?;
 
@@ -494,6 +502,7 @@ fn search_result_to_file(
     duration: u64,
     indexed_at: u64,
     accessed_at: u64,
+    parse_fail: bool,
 ) -> SQLiteResult<File> {
     let file = File {
         id,
@@ -508,6 +517,7 @@ fn search_result_to_file(
         duration: duration,
         indexed_at: indexed_at,
         accessed_at: accessed_at,
+        parse_fail: parse_fail,
     };
 
     Ok(file)
@@ -535,6 +545,7 @@ fn search_db(input: String) -> SQLiteResult<Vec<File>> {
             row.get(9)?,
             row.get(10)?,
             row.get(11)?,
+            row.get(12)?,
         )
     })?;
 
@@ -550,7 +561,7 @@ fn search_db(input: String) -> SQLiteResult<Vec<File>> {
 }
 
 fn find_song_by_hash(input: String) -> SQLiteResult<Vec<File>> {
-    let query = "SELECT id, path, file_name, file_ext, title, artist, album, duration, indexed_at, accessed_at FROM `files` WHERE `id` IN (SELECT file FROM plays WHERE hash = :input) LIMIT 0, 1;";
+    let query = "SELECT id, path, file_name, file_ext, title, artist, album, duration, indexed_at, accessed_at, parse_fail FROM `files` WHERE `id` IN (SELECT file FROM plays WHERE hash = :input) LIMIT 0, 1;";
 
     let conn = SQLite::connect();
 
@@ -570,6 +581,7 @@ fn find_song_by_hash(input: String) -> SQLiteResult<Vec<File>> {
             row.get(9)?,
             row.get(10)?,
             row.get(11)?,
+            row.get(12)?,
         )
     })?;
 
