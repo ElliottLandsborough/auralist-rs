@@ -57,6 +57,10 @@ module.exports = {
     new HtmlWebPackPlugin({
       template: './src-js/index.html',
       favicon: './images/favicon.svg',
+      minify: {
+        collapseWhitespace: true,
+        removecomments: false,
+      }
     }),
   ],
   optimization: {
