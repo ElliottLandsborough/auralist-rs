@@ -74,12 +74,12 @@ body {
     height: 44vh;
     width: 94vw;
     cursor: pointer;
-    background-color: #5C8374;
+    background-color: #009736;
     line-height: 44vh;
     font-size: 10vw;
 }
 .stop {
-    background-color: #B95252;
+    background-color: #EE2A35;
     display: block;
     margin: 4vh auto;
     height: 44vh;
