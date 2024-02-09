@@ -598,15 +598,16 @@ fn get_file_from_hash(
     hash: String,
     plays_mutex: Arc<Mutex<HashMap<String, File>>>,
 ) -> Option<music::File> {
-    println!("Locking get_file_from_hash (plays)...");
+    println!("Locking plays (get_file_from_hash)...");
     let plays = plays_mutex.lock().unwrap();
     let result = match plays.get(&hash) {
         Some(file) => Some(file.clone()),
         None => None,
     };
+    println!("Unocking plays (get_file_from_hash)...");
+    drop(plays);
 
     println!("END (get_file_from_hash)...");
-
     return result;
 }
 
@@ -639,11 +640,14 @@ async fn serve(
     // default e.g https://domain.tld
     let default = warp::path::end().and(warp::fs::file("static/index.html"));
 
-    // domain.tld/bundle.js
-    let bundle = warp::path!("bundle.js").and(warp::fs::file("static/bundle.js"));
-
     // domain.tld/favicon.svg
-    let favicon = warp::path!("favicon.svg").and(warp::fs::file("static/favicon.svg"));
+    let favicon = warp::path("favicon.svg").and(warp::fs::file("static/favicon.svg"));
+
+    // domain.tld/js/*
+    let js = warp::path("js").and(warp::fs::dir("static/js"));
+
+    // domain.tld/svg/*
+    let svg = warp::path("svg").and(warp::fs::dir("static/svg"));
 
     /*
     // domain.tld/search/[anything]
@@ -752,11 +756,12 @@ async fn serve(
         .and(
             default
                 .or(favicon)
-                .or(bundle)
                 //.or(search)
                 .or(random)
                 .or(stream)
-                .or(download),
+                .or(download)
+                .or(js)
+                .or(svg),
         )
         .with(cors)
         .recover(handle_rejection);

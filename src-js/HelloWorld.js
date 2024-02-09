@@ -2,6 +2,7 @@ import 'style.css';
 import React from 'react';
 import {Howl, Howler} from 'howler';
 import MilkDrop from './MilkDrop';
+import loadingAnimationSvg from '../images/loading.svg';
 
 class HelloWorld extends React.Component {
   constructor(props) {
@@ -93,7 +94,8 @@ class HelloWorld extends React.Component {
       src: [url],
       format: [ext],
       html5: true,
-      onplayerror: function() {
+      onplayerror: function(sound) {
+        console.log('play error');
         sound.once('unlock', function() {
           sound.play();
         });
@@ -112,11 +114,20 @@ class HelloWorld extends React.Component {
     this.setState({soundID: soundID});
   }
 
-  getAndPlay() {
+  getAndPlay(alreadyRetried = 0) {
     let self = this;
     self.setState({thinking: true});
     var request = new XMLHttpRequest();
+    request.timeout = 2000; // time in milliseconds
     request.open('GET', this.getUrl('random'), true);
+    // todo: find out where the lock is. This doesn't work as a fix really.
+    request.ontimeout = (e) => {
+      console.log('Timeout :(');
+      console.log('Retry number: ' + alreadyRetried);
+      if (alreadyRetried !== 2) {
+        self.getAndPlay(alreadyRetried + 1)
+      }
+    };
     request.onload = function() {
       if (this.status == 200) {
         let resp = this.response;
@@ -130,6 +141,7 @@ class HelloWorld extends React.Component {
         let url = self.getUrl('stream/' + obj.data[0].path);
         self.play(url, ext);
       }
+      
       self.setState({thinking: false});
     }
     request.send();
@@ -150,10 +162,9 @@ class HelloWorld extends React.Component {
       )
     }
 
-    let playNextSong;
-    if (!this.state.thinking) {
-      playNextSong = (<a onClick={this.state.thinking ? null : this.handleRandomClick.bind(this)} className="play">START / NEXT</a>)
-    }
+    let loadingAnimation = <img src={loadingAnimationSvg}></img>
+
+    let playNextSong = (<a onClick={this.state.thinking ? null : this.handleRandomClick.bind(this)} className="play">{this.state.thinking ? loadingAnimation : "START / NEXT"}</a>)
 
     let stop = (<a onClick={this.state.thinking ? null : this.handleStopClick.bind(this)} className="stop">STOP</a>)
 

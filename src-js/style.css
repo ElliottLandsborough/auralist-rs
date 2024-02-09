@@ -78,6 +78,9 @@ body {
     line-height: 44vh;
     font-size: 10vw;
 }
+.play img {
+    height: 100%;
+}
 .stop {
     background-color: #EE2A35;
     display: block;

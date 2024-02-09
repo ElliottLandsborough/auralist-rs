@@ -2,23 +2,10 @@ const path = require('path');
 const HtmlWebPackPlugin = require('html-webpack-plugin');
 const TerserPlugin = require("terser-webpack-plugin");
 
-function makeid(length) {
-  let result = '';
-  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  const charactersLength = characters.length;
-  let counter = 0;
-  while (counter < length) {
-    result += characters.charAt(Math.floor(Math.random() * charactersLength));
-    counter += 1;
-  }
-  return result;
-}
-
 module.exports = {
   output: {
     path: path.resolve(__dirname, 'static'),
-    //filename: 'bundle.' + makeid(5) + '.js',
-    filename: 'bundle.js',
+    filename: "js/bundle.[hash].js",
   },
   resolve: {
     modules: [path.join(__dirname, 'src-js'), 'node_modules'],
@@ -28,6 +15,13 @@ module.exports = {
   },
   module: {
     rules: [
+      {
+        test: /\.(png|jp(e*)g|svg|gif)$/,
+        type: "asset/resource",
+        generator: {
+          filename: 'svg/[hash][ext][query]'
+        },
+      },
       {
         test: /\.(js|jsx)$/,
         exclude: /node_modules/,
