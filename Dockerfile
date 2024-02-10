@@ -20,6 +20,6 @@ RUN apk update \
 EXPOSE 1337
 
 COPY --from=builder /app/src/target/release/auralist-rs /app
-COPY ./static/* /static/
+COPY ./static /static/
 
 CMD ["/app"]
