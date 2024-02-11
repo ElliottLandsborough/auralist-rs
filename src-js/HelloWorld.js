@@ -4,6 +4,12 @@ import {Howl, Howler} from 'howler';
 import MilkDrop from './MilkDrop';
 import loadingAnimationSvg from '../images/loading.svg';
 
+async function delay(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  })
+}
+
 class HelloWorld extends React.Component {
   constructor(props) {
     super(props);
@@ -79,7 +85,7 @@ class HelloWorld extends React.Component {
   }
 
   stop() {
-    if (this.isPlaying()) {
+    if (this.isPlaying() || this.state.howl) {
       this.state.howl.stop();
       this.reportPlayState();
     }
@@ -125,7 +131,10 @@ class HelloWorld extends React.Component {
       console.log('Timeout :(');
       console.log('Retry number: ' + alreadyRetried);
       if (alreadyRetried !== 2) {
+        self.stop();
         self.getAndPlay(alreadyRetried + 1)
+      } else {
+        self.stop();
       }
     };
     request.onload = function() {
@@ -139,10 +148,14 @@ class HelloWorld extends React.Component {
           ext: ext,
         });
         let url = self.getUrl('stream/' + obj.data[0].path);
+        self.stop();
         self.play(url, ext);
       }
-      
-      self.setState({thinking: false});
+      // Wait before allowing another click
+      setTimeout(
+        () => self.setState({ thinking: false }), 
+        2000
+      );
     }
     request.send();
   }
