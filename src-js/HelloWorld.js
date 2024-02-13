@@ -3,6 +3,7 @@ import React from 'react';
 import {Howl, Howler} from 'howler';
 import MilkDrop from './MilkDrop';
 import loadingAnimationSvg from '../images/loading.svg';
+import Marquee from "react-fast-marquee";
 
 async function delay(ms) {
   return new Promise((resolve) => {
@@ -28,12 +29,18 @@ class HelloWorld extends React.Component {
       howl: false,
       file: false,
       ext: false,
+      artist: '',
+      track: '',
+      album: '',
+      file: '',
       playing: false,
       analyser: false,
       context: false,
       audio: false,
       soundID: false,
       thinking: false,
+      includeSongs: true,
+      includeMixes: true,
     };
   }
 
@@ -84,6 +91,27 @@ class HelloWorld extends React.Component {
     console.log('hello world');
   }
 
+  enableMixes() {
+    this.setState({includeMixes: true});
+    this.setState({includeSongs: false});
+  }
+
+  enableSongs() {
+    this.setState({includeMixes: false});
+    this.setState({includeSongs: true});
+  }
+
+  enableBoth() {
+    this.setState({includeMixes: true});
+    this.setState({includeSongs: true});
+  }
+
+  searchForFile() {
+    // todo: duckduckgo link
+    // window.open(url,'_blank');
+    // https://duckduckgo.com/?q=search
+  }
+
   stop() {
     if (this.isPlaying() || this.state.howl) {
       this.state.howl.stop();
@@ -125,7 +153,13 @@ class HelloWorld extends React.Component {
     self.setState({thinking: true});
     var request = new XMLHttpRequest();
     request.timeout = 2000; // time in milliseconds
-    request.open('GET', this.getUrl('random'), true);
+    let url = 'random';
+    if (!this.state.includeSongs && this.state.includeMixes) {
+      url = 'random/mixes';
+    } else if (this.state.includeSongs && !this.state.includeMixes) {
+      url = 'random/songs';
+    }
+    request.open('GET', this.getUrl(url), true);
     // todo: find out where the lock is. This doesn't work as a fix really.
     request.ontimeout = (e) => {
       console.log('Timeout :(');
@@ -143,9 +177,17 @@ class HelloWorld extends React.Component {
         let obj = JSON.parse(resp); 
         const path = obj.data[0].path;
         const ext = obj.data[0].ext;
+        const artist = Object.values(obj.data[0]).includes("artist") ? obj.data[0].artist : '';
+        const track = Object.values(obj.data[0]).includes("track") ? obj.data[0].track : '';
+        const album = Object.values(obj.data[0]).includes("album") ? obj.data[0].album : '';
+        const file = Object.values(obj.data[0]).includes("file") ? obj.data[0].file : '';
         self.setState({
           path: path,
           ext: ext,
+          artist: artist,
+          track: track,
+          album: album,
+          file: file,
         });
         let url = self.getUrl('stream/' + obj.data[0].path);
         self.stop();
@@ -181,10 +223,23 @@ class HelloWorld extends React.Component {
 
     let stop = (<a onClick={this.state.thinking ? null : this.handleStopClick.bind(this)} className="stop">STOP</a>)
 
+    let mixes = (<div class={!this.state.includeSongs && this.state.includeMixes ? 'mixes enabled' : 'mixes disabled'} onClick={this.enableMixes.bind(this)}>Mixes</div>)
+    let songs = (<div class={this.state.includeSongs && !this.state.includeMixes ? 'songs enabled' : 'songs disabled'} onClick={this.enableSongs.bind(this)}>Songs</div>)
+    let both = (<div class={this.state.includeSongs && this.state.includeMixes ? 'both enabled' : 'both disabled'} onClick={this.enableBoth.bind(this)}>Both</div>)
+
     return (
       <div className="container">
         <div class="control" onClick={this.enableVisualsHandler}>enable</div>
         <div className="controls">
+          <div class="mixes-or-songs">{mixes}{songs}{both}</div>
+          <div class="marquee" onClick={this.searchForFile.bind(this)}>
+            <Marquee>
+              <span>Artist: {this.state.artist ? ' ' + this.state.artist : ' n/a'}</span>
+              <span>Track: {this.state.track ? ' ' + this.state.track : ' n/a'}</span>
+              <span>Album: {this.state.album ? ' ' + this.state.album : ' n/a'}</span>
+              <span>File: {this.state.file ? ' ' + this.state.file : ' n/a'}</span>
+            </Marquee>
+          </div>
           {playNextSong}
           {stop}
         </div>
