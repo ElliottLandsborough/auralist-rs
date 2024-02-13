@@ -32,15 +32,18 @@ fn main() {
     let files: HashMap<u32, File> = HashMap::new();
     let files_mutex = Arc::new(Mutex::new(files));
 
-    // todo: should this be murmur or uuid?
     let plays: HashMap<String, File> = HashMap::new();
     let plays_mutex = Arc::new(Mutex::new(plays));
 
-    // murmur
+    // murmurs / durations
+    let durations: HashMap<u32, u64> = HashMap::new();
+    let durations_mutex = Arc::new(Mutex::new(durations));
+
+    // murmurs
     let to_be_indexed: Vec<u32> = Vec::new();
     let to_be_indexed_mutex = Arc::new(Mutex::new(to_be_indexed));
 
-    // murmur
+    // murmurs
     let have_been_indexed: Vec<u32> = Vec::new();
     let have_been_indexed_mutex = Arc::new(Mutex::new(have_been_indexed));
 
@@ -70,6 +73,7 @@ fn main() {
             println!("Warming database with more file info...");
             warm(
                 files_mutex.clone(),
+                durations_mutex.clone(),
                 to_be_indexed_mutex.clone(),
                 have_been_indexed_mutex.clone(),
             );
@@ -121,6 +125,7 @@ async fn log_queues(
 #[tokio::main]
 async fn warm(
     files_mutex: Arc<std::sync::Mutex<std::collections::HashMap<u32, music::File>>>,
+    durations_mutex: Arc<std::sync::Mutex<std::collections::HashMap<u32, u64>>>,
     to_be_indexed_mutex: Arc<Mutex<Vec<u32>>>,
     have_been_indexed_mutex: Arc<Mutex<Vec<u32>>>,
 ) {
@@ -146,6 +151,11 @@ async fn warm(
                     .unwrap()
                     .as_secs();
                 f = index_and_commit_to_db(&mut f).clone();
+
+                // add to durations map
+                let mut durations = durations_mutex.lock().unwrap();
+                durations.insert(f.id, f.duration);
+                drop(durations);
 
                 if f.clone().parse_fail {
                     files.remove(&hash_to_be_indexed.unwrap());
