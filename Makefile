@@ -1,7 +1,5 @@
 default: buildrun
 
-# ln -s /media/elliott/music/Music ./files
-
 kill_if_running:
 	docker kill auralist || true
 
