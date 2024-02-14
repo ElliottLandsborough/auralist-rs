@@ -51,6 +51,8 @@ make reset
 sudo mount -t cifs -o ro,guest,vers=1.0 //192.168.769.857/music /files
 ```
 ### Todo
+- work out why it stops sometimes
+- total/elapsed time
 - show a waveform
 - skip through
 - make milkdrop respond properly
@@ -58,6 +60,5 @@ sudo mount -t cifs -o ro,guest,vers=1.0 //192.168.769.857/music /files
 - need to see distribution of song lengths
 - button to press when song fails
 - possible api/ai based categorisation
-- stream the videos
 - browsable ui
 - better docs
