@@ -52,16 +52,6 @@ body {
     text-align: center;
     width: 100%;
 }
-.control {
-    display: none;
-    position: fixed;
-    z-index: -100000;
-    top: 0px;
-    left: 0px;
-    width: 400px;
-    height: 400px;
-    border: 1px solid #4e4e4e;
-}
 .controls {
     top: 0px;
     left: 0px;
@@ -135,6 +125,7 @@ body {
     padding-right: 2vw;
 }
 .play {
+    position: relative;
     display: block;
     margin: 2vh auto;
     height: 37vh;
@@ -143,11 +134,46 @@ body {
     background-color: #009735bb;
     border: 0.5vh solid #009736;
     line-height: 37vh;
-    font-size: 10vw;
+    font-size: 12vh;
 }
 .play img {
     height: 100%;
 }
+.play-container {
+    position: relative;
+    right: 0;
+    bottom: 0;
+}
+.play-container .hypnotizer {
+    position: absolute;
+    right: 3.33vw;
+    bottom: 1vh;
+    width: 8vh;
+    height: 8vh;
+    overflow: hidden;
+    z-index: 23;
+    border: 1px solid #000000;
+    cursor: pointer;
+}
+.play-container .hypnotizer img {
+    animation: rotateHypnotizer 2s linear infinite;
+    width: 200%;
+    height: 200%;
+    position: absolute;
+    top: -6vh;
+    left: -50%;
+    top: -50%;
+}
+
+@keyframes rotateHypnotizer{
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(359deg);
+    }
+}
+
 .stop {
     background-color: #ee2a34ad;
     border: 0.5vh solid #EE2A35;
@@ -157,7 +183,7 @@ body {
     width: 94vw;
     cursor: pointer;
     line-height: 37vh;
-    font-size: 10vw;
+    font-size: 12vh;
 }
 .milk-drop {
     width: 400px;

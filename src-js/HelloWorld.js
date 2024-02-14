@@ -3,6 +3,7 @@ import React from 'react';
 import {Howl, Howler} from 'howler';
 import MilkDrop from './MilkDrop';
 import loadingAnimationSvg from '../images/loading.svg';
+import loadingHypnoSvg from '../images/hypnotize.svg';
 import Marquee from "react-fast-marquee";
 
 async function delay(ms) {
@@ -27,10 +28,9 @@ class HelloWorld extends React.Component {
       width: 0,
       height: 0,
       howl: false,
-      file: false,
       ext: false,
       artist: '',
-      track: '',
+      title: '',
       album: '',
       file: '',
       playing: false,
@@ -41,6 +41,7 @@ class HelloWorld extends React.Component {
       thinking: false,
       includeSongs: true,
       includeMixes: true,
+      hypnotize: true,
     };
   }
 
@@ -86,9 +87,8 @@ class HelloWorld extends React.Component {
     );
   }
 
-  enableVisualsHandler(event) {
-    console.log(event);
-    console.log('hello world');
+  enableVisualsHandler() {
+    this.setState({enableVisuals: true});
   }
 
   enableMixes() {
@@ -153,11 +153,11 @@ class HelloWorld extends React.Component {
     self.setState({thinking: true});
     var request = new XMLHttpRequest();
     request.timeout = 2000; // time in milliseconds
-    let url = 'random';
+    let url = 'random/all';
     if (!this.state.includeSongs && this.state.includeMixes) {
       url = 'random/mixes';
     } else if (this.state.includeSongs && !this.state.includeMixes) {
-      url = 'random/songs';
+      url = 'random/songs-and-tunes';
     }
     request.open('GET', this.getUrl(url), true);
     // todo: find out where the lock is. This doesn't work as a fix really.
@@ -177,15 +177,15 @@ class HelloWorld extends React.Component {
         let obj = JSON.parse(resp); 
         const path = obj.data[0].path;
         const ext = obj.data[0].ext;
-        const artist = Object.values(obj.data[0]).includes("artist") ? obj.data[0].artist : '';
-        const track = Object.values(obj.data[0]).includes("track") ? obj.data[0].track : '';
-        const album = Object.values(obj.data[0]).includes("album") ? obj.data[0].album : '';
-        const file = Object.values(obj.data[0]).includes("file") ? obj.data[0].file : '';
+        const artist = "artist" in obj.data[0] ? obj.data[0].artist : '';
+        const title = "title" in obj.data[0] ? obj.data[0].title : '';
+        const album = "album" in obj.data[0] ? obj.data[0].album : '';
+        const file = "file" in obj.data[0] ? obj.data[0].file : '';
         self.setState({
           path: path,
           ext: ext,
           artist: artist,
-          track: track,
+          title: title,
           album: album,
           file: file,
         });
@@ -218,8 +218,10 @@ class HelloWorld extends React.Component {
     }
 
     let loadingAnimation = <img src={loadingAnimationSvg}></img>
+    let hypnotize = <img src={loadingHypnoSvg}></img>
+    let hypnotizer = (this.state.playing ? <div class="hypnotizer" onClick={this.enableVisualsHandler.bind(this)}>{hypnotize}</div> : '')
 
-    let playNextSong = (<a onClick={this.state.thinking ? null : this.handleRandomClick.bind(this)} className="play">{this.state.thinking ? loadingAnimation : "START / NEXT"}</a>)
+    let playNextSong = (<a onClick={this.state.thinking ? null : this.handleRandomClick.bind(this)} className="play">{this.state.thinking ? loadingAnimation : "RANDOM"}</a>)
 
     let stop = (<a onClick={this.state.thinking ? null : this.handleStopClick.bind(this)} className="stop">STOP</a>)
 
@@ -227,25 +229,33 @@ class HelloWorld extends React.Component {
     let songs = (<div class={this.state.includeSongs && !this.state.includeMixes ? 'songs enabled' : 'songs disabled'} onClick={this.enableSongs.bind(this)}>Songs</div>)
     let both = (<div class={this.state.includeSongs && this.state.includeMixes ? 'both enabled' : 'both disabled'} onClick={this.enableBoth.bind(this)}>Both</div>)
 
+    let marquee = (
+      <Marquee>
+        <span>Artist: {this.state.artist ? ' ' + this.state.artist : ' n/a'}</span>
+        <span>Title: {this.state.title ? ' ' + this.state.title : ' n/a'}</span>
+        <span>Album: {this.state.album ? ' ' + this.state.album : ' n/a'}</span>
+        <span>File: {this.state.file ? ' ' + this.state.file : ' n/a'}</span>
+      </Marquee>
+    )
+
     return (
       <div className="container">
-        <div class="control" onClick={this.enableVisualsHandler}>enable</div>
         <div className="controls">
           <div class="mixes-or-songs">{mixes}{songs}{both}</div>
           <div class="marquee" onClick={this.searchForFile.bind(this)}>
-            <Marquee>
-              <span>Artist: {this.state.artist ? ' ' + this.state.artist : ' n/a'}</span>
-              <span>Track: {this.state.track ? ' ' + this.state.track : ' n/a'}</span>
-              <span>Album: {this.state.album ? ' ' + this.state.album : ' n/a'}</span>
-              <span>File: {this.state.file ? ' ' + this.state.file : ' n/a'}</span>
-            </Marquee>
+            {marquee}
           </div>
-          {playNextSong}
+          <div class="play-container">
+            {hypnotizer}
+            {playNextSong}
+          </div>
           {stop}
         </div>
         <div className="search">
         </div>
-        {milkDrop}
+        <div class="milkdrop">
+          {milkDrop}
+        </div>
       </div>
     );
   }

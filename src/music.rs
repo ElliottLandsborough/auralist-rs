@@ -29,6 +29,10 @@ pub struct File {
 pub struct FileHashed {
     pub path: String,
     pub ext: String,
+    pub title: String,
+    pub artist: String,
+    pub album: String,
+    pub file: String,
 }
 
 impl File {
@@ -36,6 +40,12 @@ impl File {
         FileHashed {
             path: self.get_unique_id(),
             ext: self.file_ext.clone(),
+            title: self.title.clone(),
+            artist: self.artist.clone(),
+            album: self.album.clone(),
+            // todo: do we need filename?
+            //file: self.file_name.clone()
+            file: "".to_string(),
         }
     }
 
@@ -171,7 +181,7 @@ impl File {
         println!("Album: {}", tag.album().as_deref().unwrap_or(""));
         self.title = tag.title().as_deref().unwrap_or("").to_string();
         self.artist = tag.artist().as_deref().unwrap_or("").to_string();
-        self.album = tag.title().as_deref().unwrap_or("").to_string();
+        self.album = tag.album().as_deref().unwrap_or("").to_string();
     }
 
     pub fn get_unique_id(&mut self) -> String {

@@ -29,9 +29,11 @@ use std::{
 };
 
 fn main() {
+    // murmurs with their file counterparts
     let files: HashMap<u32, File> = HashMap::new();
     let files_mutex = Arc::new(Mutex::new(files));
 
+    // random ids that need to be sought
     let plays: HashMap<String, File> = HashMap::new();
     let plays_mutex = Arc::new(Mutex::new(plays));
 
@@ -39,17 +41,25 @@ fn main() {
     let durations: HashMap<u32, u64> = HashMap::new();
     let durations_mutex = Arc::new(Mutex::new(durations));
 
-    // murmurs
+    // murmurs of mixes
+    let mixes: Vec<u32> = Vec::new();
+    let mixes_mutex = Arc::new(Mutex::new(mixes));
+
+    // murmurs of tunes-and-songs
+    let tunes: Vec<u32> = Vec::new();
+    let tunes_mutex = Arc::new(Mutex::new(tunes));
+
+    // murmurs to be indexed
     let to_be_indexed: Vec<u32> = Vec::new();
     let to_be_indexed_mutex = Arc::new(Mutex::new(to_be_indexed));
 
-    // murmurs
+    // murmurs that have been indexed
     let have_been_indexed: Vec<u32> = Vec::new();
     let have_been_indexed_mutex = Arc::new(Mutex::new(have_been_indexed));
 
     SQLite::initialize();
 
-    load_old_data(files_mutex.clone(), have_been_indexed_mutex.clone());
+    load_old_data(files_mutex.clone(), have_been_indexed_mutex.clone(), mixes_mutex.clone(), tunes_mutex.clone());
 
     thread::scope(|s| {
         s.spawn(|| {
@@ -74,6 +84,8 @@ fn main() {
             warm(
                 files_mutex.clone(),
                 durations_mutex.clone(),
+                mixes_mutex.clone(),
+                tunes_mutex.clone(),
                 to_be_indexed_mutex.clone(),
                 have_been_indexed_mutex.clone(),
             );
@@ -88,6 +100,8 @@ fn main() {
                 files_mutex.clone(),
                 plays_mutex.clone(),
                 have_been_indexed_mutex.clone(),
+                mixes_mutex.clone(),
+                tunes_mutex.clone(),
             );
         });
         println!("Hello from the main... \\m/");
@@ -126,6 +140,8 @@ async fn log_queues(
 async fn warm(
     files_mutex: Arc<std::sync::Mutex<std::collections::HashMap<u32, music::File>>>,
     durations_mutex: Arc<std::sync::Mutex<std::collections::HashMap<u32, u64>>>,
+    mixes_mutex: Arc<Mutex<Vec<u32>>>,
+    tunes_mutex: Arc<Mutex<Vec<u32>>>,
     to_be_indexed_mutex: Arc<Mutex<Vec<u32>>>,
     have_been_indexed_mutex: Arc<Mutex<Vec<u32>>>,
 ) {
@@ -152,26 +168,50 @@ async fn warm(
                     .as_secs();
                 f = index_and_commit_to_db(&mut f).clone();
 
-                // add to durations map
-                let mut durations = durations_mutex.lock().unwrap();
-                durations.insert(f.id, f.duration);
-                drop(durations);
-
                 if f.clone().parse_fail {
                     files.remove(&hash_to_be_indexed.unwrap());
                 } else {
-                    *files.get_mut(&hash_to_be_indexed.unwrap()).unwrap() = f;
+                    *files.get_mut(&hash_to_be_indexed.unwrap()).unwrap() = f.clone();
 
                     // todo: update search
                     //search::write_index(f)
                 }
 
+                // add to in memory list of files that have definitely been indexed
                 println!("Locking have_been_indexed (warm)...");
                 let mut have_been_indexed = have_been_indexed_mutex.lock().unwrap();
                 have_been_indexed.push(hash_to_be_indexed.unwrap());
                 have_been_indexed.dedup();
                 println!("Unlocking have_been_indexed (warm)...");
                 drop(have_been_indexed);
+
+                // add to in memory list of files that have a duration
+                println!("Locking durations (warm)...");
+                let mut durations = durations_mutex.lock().unwrap();
+                let f = f.clone();
+                durations.insert(f.id, f.duration);
+                println!("Unlocking durations (warm)...");
+                drop(durations);
+
+                // todo: dupe
+                let mix_threshold = 13 * 60;
+                if f.duration > mix_threshold {
+                    // add to in memory list of mixes
+                    println!("Locking mixes (warm)...");
+                    let mut mixes = mixes_mutex.lock().unwrap();
+                    let f = f.clone();
+                    mixes.push(f.id);
+                    println!("Unlocking mixes (warm)...");
+                    drop(mixes);
+                } else {
+                    // add to in memory list of tunes
+                    println!("Locking tunes (warm)...");
+                    let mut tunes = tunes_mutex.lock().unwrap();
+                    let f = f.clone();
+                    tunes.push(f.id);
+                    println!("Unlocking tunes (warm)...");
+                    drop(tunes);
+                }
             }
 
             println!("Unlocking files (warm)...");
@@ -189,6 +229,8 @@ async fn warm(
 fn load_old_data(
     files_mutex: Arc<std::sync::Mutex<HashMap<u32, File>>>,
     have_been_indexed_mutex: Arc<Mutex<Vec<u32>>>,
+    mixes_mutex: Arc<Mutex<Vec<u32>>>,
+    tunes_mutex: Arc<Mutex<Vec<u32>>>,
 ) {
     // Grab all files from the sqlite database if possible
     println!("+ Loading old data");
@@ -209,6 +251,27 @@ fn load_old_data(
         have_been_indexed.dedup();
         println!("Unlocking have_been_indexed (load_old_data)...");
         drop(have_been_indexed);
+
+                // todo: dupe
+                let f = file.clone();
+                let mix_threshold = 13 * 60;
+                if f.duration > mix_threshold {
+                    // add to in memory list of mixes
+                    println!("Locking mixes (warm)...");
+                    let mut mixes = mixes_mutex.lock().unwrap();
+                    let f = f.clone();
+                    mixes.push(f.id);
+                    println!("Unlocking mixes (warm)...");
+                    drop(mixes);
+                } else {
+                    // add to in memory list of tunes
+                    println!("Locking tunes (warm)...");
+                    let mut tunes = tunes_mutex.lock().unwrap();
+                    let f = f.clone();
+                    tunes.push(f.id);
+                    println!("Unlocking tunes (warm)...");
+                    drop(tunes);
+                }
     }
 }
 
@@ -621,6 +684,63 @@ fn get_file_from_hash(
     return result;
 }
 
+
+fn generate_random_response(
+    files_mutex: &Arc<std::sync::Mutex<std::collections::HashMap<u32, music::File>>>,
+    plays_mutex: &Arc<Mutex<HashMap<String, File>>>,
+    random_hash: u32,
+) -> warp::reply::Json {
+    if random_hash == 0 {
+        let response = EmptyResponse {
+            status: 404,
+            message: "No files have been indexed (yet...)".to_string(),
+        };
+
+        return warp::reply::json(&response);
+    }
+
+    let files_mutex = Arc::clone(&files_mutex);
+    let files = files_mutex.lock().unwrap();
+
+    let mut random_files: Vec<File> = Vec::new();
+
+    match files.get(&random_hash) {
+        Some(file) => random_files.push(file.clone()),
+        _ => println!("Hash is missing from db"),
+    };
+
+    drop(files);
+
+    let mut random_files_hashed: Vec<FileHashed> = Vec::new();
+    for file in random_files {
+        let file_hashed = file.clone().to_response();
+        random_files_hashed.push(file_hashed.clone());
+
+        let plays_mutex = Arc::clone(&plays_mutex);
+
+        // Acquire and drop mutex
+        println!("Locking plays (serve)...");
+        let mut plays = plays_mutex.lock().unwrap();
+        let mut file = file.clone();
+        file.accessed_at = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        plays.insert(file_hashed.path.clone(), file);
+        println!("Unlocking plays (serve)...");
+        drop(plays);
+    }
+
+    let response = FileResponse {
+        status: 200,
+        message: "OK".to_string(),
+        count: random_files_hashed.len(),
+        data: random_files_hashed,
+    };
+
+    return warp::reply::json(&response);
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 struct EmptyResponse {
     pub status: i32,
@@ -640,12 +760,18 @@ async fn serve(
     files_mutex: Arc<std::sync::Mutex<std::collections::HashMap<u32, music::File>>>,
     plays_mutex: Arc<Mutex<HashMap<String, File>>>,
     have_been_indexed_mutex: Arc<Mutex<Vec<u32>>>,
+    mixes_mutex: Arc<Mutex<Vec<u32>>>,
+    tunes_mutex: Arc<Mutex<Vec<u32>>>,
 ) {
     println!("SERVING");
-    let plays_mutex_1 = plays_mutex.clone();
-    let plays_mutex_2 = plays_mutex.clone();
-    let plays_mutex_3 = plays_mutex.clone();
-    let have_been_indexed_mutex = have_been_indexed_mutex.clone();
+    let files_mutex_1 = Arc::clone(&files_mutex);
+    let have_been_indexed_mutex_1 = Arc::clone(&have_been_indexed_mutex);
+    let mixes_mutex_1 = Arc::clone(&mixes_mutex);
+    let tunes_mutex_1 = Arc::clone(&tunes_mutex);
+
+    let plays_mutex_1 = Arc::clone(&plays_mutex);
+    let plays_mutex_2 = Arc::clone(&plays_mutex);
+    let plays_mutex_3 = Arc::clone(&plays_mutex);
 
     // default e.g https://domain.tld
     let default = warp::path::end().and(warp::fs::file("static/index.html"));
@@ -679,61 +805,16 @@ async fn serve(
     */
 
     // domain.tld/random
-    let random = warp::path!("random").and(warp::path::end()).map(move || {
-        let m = Arc::clone(&have_been_indexed_mutex);
-
-        let random_hash = random_hash(m);
-
-        if random_hash == 0 {
-            let response = EmptyResponse {
-                status: 404,
-                message: "No files have been indexed (yet...)".to_string(),
-            };
-
-            return warp::reply::json(&response);
-        }
-
-        let files_mutex = files_mutex.clone();
-        let files = files_mutex.lock().unwrap();
-
-        let mut random_files: Vec<File> = Vec::new();
-
-        match files.get(&random_hash) {
-            Some(file) => random_files.push(file.clone()),
-            _ => println!("Hash is missing from db"),
-        };
-
-        drop(files);
-
-        let mut random_files_hashed: Vec<FileHashed> = Vec::new();
-        for file in random_files {
-            let file_hashed = file.clone().to_response();
-            random_files_hashed.push(file_hashed.clone());
-
-            let plays_mutex = plays_mutex_1.clone();
-
-            // Acquire and drop mutex
-            println!("Locking plays (serve)...");
-            let mut plays = plays_mutex.lock().unwrap();
-            let mut file = file.clone();
-            file.accessed_at = SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_secs();
-            plays.insert(file_hashed.path.clone(), file);
-            println!("Unlocking plays (serve)...");
-            drop(plays);
-        }
-
-        let response = FileResponse {
-            status: 200,
-            message: "OK".to_string(),
-            count: random_files_hashed.len(),
-            data: random_files_hashed,
-        };
-
+    let random = warp::path!("random" / String).map(move |mode: String| {
+        println!("START (route:random)...");
+        let hbim = Arc::clone(&have_been_indexed_mutex_1);
+        let mm = Arc::clone(&mixes_mutex_1);
+        let tm = Arc::clone(&tunes_mutex_1);
+        let random_hash = random_hash(hbim, mm, tm, mode.to_string());
+        let fm = Arc::clone(&files_mutex_1);
+        let response = generate_random_response(&fm, &plays_mutex_1, random_hash);
         println!("END (route:random)...");
-        return warp::reply::json(&response);
+        return response;
     });
 
     // domain.tld/stream/[anything] (parses range headers)
@@ -748,7 +829,9 @@ async fn serve(
     // domain.tld/stream/[anything] (when stream headers are missing)
     let download = warp::path!("stream" / String).and_then(move |hash: String| {
         let plays_mutex = plays_mutex_3.clone();
-        get_range("".to_string(), hash, plays_mutex)
+        let range = get_range("".to_string(), hash, Arc::clone(&plays_mutex));
+        drop(plays_mutex);
+        return range;
     });
 
     let cors = warp::cors()
@@ -924,15 +1007,30 @@ async fn internal_get_range(
     Ok(response)
 }
 
-fn random_hash(have_been_indexed_mutex: Arc<Mutex<Vec<u32>>>) -> u32 {
+fn random_hash(
+    have_been_indexed_mutex: Arc<Mutex<Vec<u32>>>,
+    mixes_mutex: Arc<Mutex<Vec<u32>>>,
+    tunes_mutex: Arc<Mutex<Vec<u32>>>,
+    mode: String,
+) -> u32 {
     println!("Locking have_been_indexed_mutex (random_hash)...");
-    let have_been_indexed = have_been_indexed_mutex.lock().unwrap();
-    let random_hash_opt = have_been_indexed.choose(&mut rand::thread_rng());
 
-    let hash = match random_hash_opt {
+    // all files
+    let mut selection_mutex = have_been_indexed_mutex;
+
+    if mode == "songs-and-tunes" {
+        selection_mutex = tunes_mutex;
+    }
+
+    if mode == "mixes" {
+        selection_mutex = mixes_mutex;
+    }
+
+    let selection = selection_mutex.lock().unwrap();
+    let random_hash_opt = selection.choose(&mut rand::thread_rng());
+
+    return match random_hash_opt {
         Some(random_hash_opt) => u32::from(random_hash_opt.clone()),
         None => 0,
     };
-
-    return hash;
 }
