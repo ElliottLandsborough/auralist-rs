@@ -5,8 +5,11 @@ default: buildrun
 kill_if_running:
 	docker kill auralist || true
 
-clean:
-	docker system prune -f
+force_prune:
+	docker system prune --all --force
+
+truncate_database:
+	truncate auralist.sqlite --size 0
 
 pull:
 	docker pull scruples/auralist:latest
@@ -21,3 +24,5 @@ run:
 	docker run --name auralist --restart always -p 1337:1337 -v ./files:/files -v ${PWD}/auralist.sqlite:/auralist.sqlite -v ${PWD}/exclusions.txt:/exclusions.txt -d scruples/auralist
 
 reset: pull kill_if_running run
+
+hard_reset: kill_if_running force_prune truncate_database pull run;
