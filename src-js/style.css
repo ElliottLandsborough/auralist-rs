@@ -44,7 +44,7 @@ table {
 
 /* styles */
 body {
-    font-family: Helvetica, sans-serif;
+    font-family: monospace;
     background: #010101;
     color: #eee;
 }
@@ -63,7 +63,7 @@ body {
     height: 5vh;
     width: 95vw;
     margin: 3vh auto;
-    line-height: 5.5vh;
+    line-height: 5vh;
 }
 .mixes-or-tunes div {
     display: block;
@@ -87,7 +87,7 @@ body {
 .mixes-or-tunes .disabled {
     background-color: #2146ff23;
     border: 0.5vh solid #2146ff59;
-    color: rgba(255, 255, 255, 0.332)
+    color: rgba(255, 255, 255, 0.332);
 }
 
 .mixes-or-tunes .mixes {
@@ -106,20 +106,20 @@ body {
     top: 0;
 }
 .marquee {
-    width: 93.8vw;
+    width: 93.7vw;
     margin: 2vh auto;
     border: 0.5vh solid #ff9924;
     background-color: #ff99249b;
     top: 50.3vh;
     color: #ffffff;
     font-weight: bold;
-    font-size: 3.5vh;
+    font-size: 3vh;
     text-transform: uppercase;
     height: 4vh;
     line-height: 4vh;
 }
 .marquee .rfm-marquee {
-    line-height: 4.5vh;
+    line-height: 4vh;
 }
 .marquee span {
     padding-right: 2vw;
