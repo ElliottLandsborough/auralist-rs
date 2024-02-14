@@ -6,12 +6,6 @@ import loadingAnimationSvg from '../images/loading.svg';
 import loadingHypnoSvg from '../images/hypnotize.svg';
 import Marquee from "react-fast-marquee";
 
-async function delay(ms) {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  })
-}
-
 class HelloWorld extends React.Component {
   constructor(props) {
     super(props);
@@ -30,11 +24,18 @@ class HelloWorld extends React.Component {
   }
   
   updateWindowDimensions() {
-    console.log('we have a resize.');
     this.setState({ width: window.innerWidth, height: window.innerHeight });
   }
 
   getInitialState() {
+    let includeTunes = localStorage.getItem('includeTunes');
+    let includeMixes = localStorage.getItem('includeMixes');
+    if (Object.is(includeTunes, null)) {
+      includeTunes = false
+    }
+    if (Object.is(includeMixes, null)) {
+      includeMixes = true
+    }
     return {
       enableVisuals: false,
       width: 0,
@@ -51,8 +52,8 @@ class HelloWorld extends React.Component {
       audio: false,
       soundID: false,
       thinking: false,
-      includeSongs: true,
-      includeMixes: true,
+      includeTunes: includeTunes,
+      includeMixes: includeMixes,
       hypnotize: true,
     };
   }
@@ -63,16 +64,6 @@ class HelloWorld extends React.Component {
 
   handleStopClick(e) {
     this.stop();
-  }
-
-  getUrl(path) {
-    let domainPrefix = '';
-
-    if (window.location.hostname === 'randomsound.uk') {
-        domainPrefix = 'https://randomsound.uk/';
-    }
-
-    return domainPrefix + path;
   }
 
   isPlaying() {
@@ -110,16 +101,22 @@ class HelloWorld extends React.Component {
   enableMixes() {
     this.setState({includeMixes: true});
     this.setState({includeSongs: false});
+    localStorage.setItem('includeMixes', true);
+    localStorage.setItem('includeSongs', false);
   }
 
   enableSongs() {
     this.setState({includeMixes: false});
     this.setState({includeSongs: true});
+    localStorage.setItem('includeMixes', false);
+    localStorage.setItem('includeSongs', true);
   }
 
   enableBoth() {
     this.setState({includeMixes: true});
     this.setState({includeSongs: true});
+    localStorage.setItem('includeMixes', true);
+    localStorage.setItem('includeSongs', true);
   }
 
   searchForFile() {
@@ -175,7 +172,7 @@ class HelloWorld extends React.Component {
     } else if (this.state.includeSongs && !this.state.includeMixes) {
       url = 'random/songs-and-tunes';
     }
-    request.open('GET', this.getUrl(url), true);
+    request.open('GET', url, true);
     // todo: find out where the lock is. This doesn't work as a fix really.
     request.ontimeout = (e) => {
       console.log('Timeout :(');
@@ -205,7 +202,7 @@ class HelloWorld extends React.Component {
           album: album,
           file: file,
         });
-        let url = self.getUrl('stream/' + obj.data[0].path);
+        let url = 'stream/' + obj.data[0].path;
         self.stop();
         self.play(url, ext);
       }
