@@ -54,6 +54,7 @@ class HelloWorld extends React.Component {
       thinking: false,
       includeTunes: false,
       includeMixes: true,
+      hypnotize: false,
     };
   }
 
@@ -168,7 +169,10 @@ class HelloWorld extends React.Component {
 
   getAndPlay(alreadyRetried = 0) {
     let self = this;
-    self.setState({thinking: true});
+    self.setState({
+      thinking: true,
+      hypnotize: false,
+    });
     var request = new XMLHttpRequest();
     request.timeout = 2000; // time in milliseconds
     let url = 'random/all';
@@ -213,7 +217,10 @@ class HelloWorld extends React.Component {
       }
       // Wait before allowing another click
       setTimeout(
-        () => self.setState({ thinking: false }), 
+        () => self.setState({
+          thinking: false,
+          hypnotize: true,
+        }), 
         2000
       );
     }
@@ -241,7 +248,7 @@ class HelloWorld extends React.Component {
 
     let loadingAnimation = <img src={loadingAnimationSvg}></img>
     let hypnotize = <img src={loadingHypnoSvg}></img>
-    let hypnotizer = (this.state.playing && !this.state.enableVisuals ? <div class="hypnotizer" onClick={this.enableVisualsHandler.bind(this)}>{hypnotize}</div> : '')
+    let hypnotizer = (this.state.hypnotize && this.state.playing && !this.state.enableVisuals ? <div class="hypnotizer" onClick={this.enableVisualsHandler.bind(this)}>{hypnotize}</div> : '')
 
     let playNextSong = (<a onClick={this.state.thinking ? null : this.handleRandomClick.bind(this)} className="play">{this.state.thinking ? loadingAnimation : "RANDOM"}</a>)
 
