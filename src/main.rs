@@ -59,7 +59,12 @@ fn main() {
 
     SQLite::initialize();
 
-    load_old_data(files_mutex.clone(), have_been_indexed_mutex.clone(), mixes_mutex.clone(), tunes_mutex.clone());
+    load_old_data(
+        files_mutex.clone(),
+        have_been_indexed_mutex.clone(),
+        mixes_mutex.clone(),
+        tunes_mutex.clone(),
+    );
 
     thread::scope(|s| {
         s.spawn(|| {
@@ -252,26 +257,26 @@ fn load_old_data(
         println!("Unlocking have_been_indexed (load_old_data)...");
         drop(have_been_indexed);
 
-                // todo: dupe
-                let f = file.clone();
-                let mix_threshold = 13 * 60;
-                if f.duration > mix_threshold {
-                    // add to in memory list of mixes
-                    println!("Locking mixes (warm)...");
-                    let mut mixes = mixes_mutex.lock().unwrap();
-                    let f = f.clone();
-                    mixes.push(f.id);
-                    println!("Unlocking mixes (warm)...");
-                    drop(mixes);
-                } else {
-                    // add to in memory list of tunes
-                    println!("Locking tunes (warm)...");
-                    let mut tunes = tunes_mutex.lock().unwrap();
-                    let f = f.clone();
-                    tunes.push(f.id);
-                    println!("Unlocking tunes (warm)...");
-                    drop(tunes);
-                }
+        // todo: dupe
+        let f = file.clone();
+        let mix_threshold = 13 * 60;
+        if f.duration > mix_threshold {
+            // add to in memory list of mixes
+            println!("Locking mixes (warm)...");
+            let mut mixes = mixes_mutex.lock().unwrap();
+            let f = f.clone();
+            mixes.push(f.id);
+            println!("Unlocking mixes (warm)...");
+            drop(mixes);
+        } else {
+            // add to in memory list of tunes
+            println!("Locking tunes (warm)...");
+            let mut tunes = tunes_mutex.lock().unwrap();
+            let f = f.clone();
+            tunes.push(f.id);
+            println!("Unlocking tunes (warm)...");
+            drop(tunes);
+        }
     }
 }
 
@@ -683,7 +688,6 @@ fn get_file_from_hash(
     println!("END (get_file_from_hash)...");
     return result;
 }
-
 
 fn generate_random_response(
     files_mutex: &Arc<std::sync::Mutex<std::collections::HashMap<u32, music::File>>>,

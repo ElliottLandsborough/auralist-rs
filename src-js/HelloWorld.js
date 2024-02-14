@@ -18,11 +18,11 @@ class HelloWorld extends React.Component {
     this.updateWindowDimensions();
     window.addEventListener('resize', this.updateWindowDimensions);
 
-    let includeTunes = localStorage.getItem('includeTunes');
     let includeMixes = localStorage.getItem('includeMixes');
+    let includeTunes = localStorage.getItem('includeTunes');
 
     this.setState({
-      includeMixes: Object.is(includeMixes, null) ? false : JSON.parse(includeMixes),
+      includeMixes: Object.is(includeMixes, null) ? true : JSON.parse(includeMixes),
       includeTunes: Object.is(includeTunes, null) ? false : JSON.parse(includeTunes),
     });
   }

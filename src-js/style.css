@@ -134,7 +134,7 @@ body {
     background-color: #009735bb;
     border: 0.5vh solid #009736;
     line-height: 37vh;
-    font-size: 12vh;
+    font-size: 7.5vh;
 }
 .play img {
     height: 100%;
@@ -183,7 +183,7 @@ body {
     width: 94vw;
     cursor: pointer;
     line-height: 37vh;
-    font-size: 12vh;
+    font-size: 7.5vh;
 }
 .milkdrop .close {
     z-index: 5555;
