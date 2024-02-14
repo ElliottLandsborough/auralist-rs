@@ -92,10 +92,6 @@ export default class Milkdrop extends React.Component {
     }
   }
 
-  handleChangeClick(e) {
-    this.loadRandomPreset();
-  }
-
   render() {
     return (
       <div className="milk-drop">
@@ -104,7 +100,6 @@ export default class Milkdrop extends React.Component {
           width={this.props.width}
           ref={node => (this._canvasNode = node)}
         />
-        <button onClick={this.handleChangeClick.bind(this)}>Change preset</button>
       </div>
     );
   }

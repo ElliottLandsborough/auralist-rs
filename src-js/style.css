@@ -185,11 +185,22 @@ body {
     line-height: 37vh;
     font-size: 12vh;
 }
+.milkdrop .close {
+    z-index: 5555;
+    cursor: not-allowed;
+    position: absolute;
+    width: 100vw;
+    height: 100vh;
+    top: 0;
+    left: 0;
+}
 .milk-drop {
-    width: 400px;
-    height: 300px;
-    border: 1px solid #fff;
-    margin: 20px auto;
+    position: absolute;
+    width: 100vw;
+    height: 100vh;
+    margin: 0;
+    top: 0;
+    left: 0;
 }
 .milk-drop canvas {
     width: 100%;

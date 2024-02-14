@@ -16,10 +16,22 @@ class HelloWorld extends React.Component {
   constructor(props) {
     super(props);
     this.state = this.getInitialState();
+    this.updateWindowDimensions = this.updateWindowDimensions.bind(this);
   }
-
+  
   componentDidMount() {
     document.title = "randomsound.uk";
+    this.updateWindowDimensions();
+    window.addEventListener('resize', this.updateWindowDimensions);
+  }
+  
+  componentWillUnmount() {
+    window.removeEventListener('resize', this.updateWindowDimensions);
+  }
+  
+  updateWindowDimensions() {
+    console.log('we have a resize.');
+    this.setState({ width: window.innerWidth, height: window.innerHeight });
   }
 
   getInitialState() {
@@ -89,6 +101,10 @@ class HelloWorld extends React.Component {
 
   enableVisualsHandler() {
     this.setState({enableVisuals: true});
+  }
+
+  disableVisualsHandler() {
+    this.setState({enableVisuals: false});
   }
 
   enableMixes() {
@@ -204,22 +220,26 @@ class HelloWorld extends React.Component {
 
   render() {
     let milkDrop;
+
     if (this.state.playing && this.state.enableVisuals) {
       milkDrop = (
-        <MilkDrop
-          width={this.state.width}
-          height={this.state.height}
-          context={this.state.context}
-          analyser={this.state.analyser}
-          audio={this.state.audio}
-          playing={this.isPlaying()}
-        />
+        <div class="milkdrop">
+          <div class="close" onClick={this.disableVisualsHandler.bind(this)}></div>
+          <MilkDrop
+            width={this.state.width}
+            height={this.state.height}
+            context={this.state.context}
+            analyser={this.state.analyser}
+            audio={this.state.audio}
+            playing={this.isPlaying()}
+          />
+        </div>
       )
     }
 
     let loadingAnimation = <img src={loadingAnimationSvg}></img>
     let hypnotize = <img src={loadingHypnoSvg}></img>
-    let hypnotizer = (this.state.playing ? <div class="hypnotizer" onClick={this.enableVisualsHandler.bind(this)}>{hypnotize}</div> : '')
+    let hypnotizer = (this.state.playing && !this.state.enableVisuals ? <div class="hypnotizer" onClick={this.enableVisualsHandler.bind(this)}>{hypnotize}</div> : '')
 
     let playNextSong = (<a onClick={this.state.thinking ? null : this.handleRandomClick.bind(this)} className="play">{this.state.thinking ? loadingAnimation : "RANDOM"}</a>)
 
@@ -229,14 +249,14 @@ class HelloWorld extends React.Component {
     let songs = (<div class={this.state.includeSongs && !this.state.includeMixes ? 'songs enabled' : 'songs disabled'} onClick={this.enableSongs.bind(this)}>Songs</div>)
     let both = (<div class={this.state.includeSongs && this.state.includeMixes ? 'both enabled' : 'both disabled'} onClick={this.enableBoth.bind(this)}>Both</div>)
 
-    let marquee = (
+    let marquee = !this.state.enableVisuals ? (
       <Marquee>
         <span>Artist: {this.state.artist ? ' ' + this.state.artist : ' n/a'}</span>
         <span>Title: {this.state.title ? ' ' + this.state.title : ' n/a'}</span>
         <span>Album: {this.state.album ? ' ' + this.state.album : ' n/a'}</span>
         <span>File: {this.state.file ? ' ' + this.state.file : ' n/a'}</span>
       </Marquee>
-    )
+    ) : ''
 
     return (
       <div className="container">
@@ -253,9 +273,7 @@ class HelloWorld extends React.Component {
         </div>
         <div className="search">
         </div>
-        <div class="milkdrop">
-          {milkDrop}
-        </div>
+        {milkDrop}
       </div>
     );
   }
