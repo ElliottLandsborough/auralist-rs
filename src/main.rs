@@ -45,7 +45,7 @@ fn main() {
     let mixes: Vec<u32> = Vec::new();
     let mixes_mutex = Arc::new(Mutex::new(mixes));
 
-    // murmurs of tunes-and-songs
+    // murmurs of tunes
     let tunes: Vec<u32> = Vec::new();
     let tunes_mutex = Arc::new(Mutex::new(tunes));
 
@@ -1018,7 +1018,7 @@ fn random_hash(
     // all files
     let mut selection_mutex = have_been_indexed_mutex;
 
-    if mode == "songs-and-tunes" {
+    if mode == "tunes" {
         selection_mutex = tunes_mutex;
     }
 

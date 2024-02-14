@@ -17,6 +17,14 @@ class HelloWorld extends React.Component {
     document.title = "randomsound.uk";
     this.updateWindowDimensions();
     window.addEventListener('resize', this.updateWindowDimensions);
+
+    let includeTunes = localStorage.getItem('includeTunes');
+    let includeMixes = localStorage.getItem('includeMixes');
+
+    this.setState({
+      includeMixes: Object.is(includeMixes, null) ? false : JSON.parse(includeMixes),
+      includeTunes: Object.is(includeTunes, null) ? false : JSON.parse(includeTunes),
+    });
   }
   
   componentWillUnmount() {
@@ -28,14 +36,6 @@ class HelloWorld extends React.Component {
   }
 
   getInitialState() {
-    let includeTunes = localStorage.getItem('includeTunes');
-    let includeMixes = localStorage.getItem('includeMixes');
-    if (Object.is(includeTunes, null)) {
-      includeTunes = false
-    }
-    if (Object.is(includeMixes, null)) {
-      includeMixes = true
-    }
     return {
       enableVisuals: false,
       width: 0,
@@ -52,9 +52,8 @@ class HelloWorld extends React.Component {
       audio: false,
       soundID: false,
       thinking: false,
-      includeTunes: includeTunes,
-      includeMixes: includeMixes,
-      hypnotize: true,
+      includeTunes: false,
+      includeMixes: true,
     };
   }
 
@@ -99,24 +98,30 @@ class HelloWorld extends React.Component {
   }
 
   enableMixes() {
-    this.setState({includeMixes: true});
-    this.setState({includeSongs: false});
+    this.setState({
+      includeMixes: true,
+      includeTunes: false,
+    });
     localStorage.setItem('includeMixes', true);
-    localStorage.setItem('includeSongs', false);
+    localStorage.setItem('includeTunes', false);
   }
 
-  enableSongs() {
-    this.setState({includeMixes: false});
-    this.setState({includeSongs: true});
+  enableTunes() {
+    this.setState({
+      includeMixes: false,
+      includeTunes: true,
+    });
     localStorage.setItem('includeMixes', false);
-    localStorage.setItem('includeSongs', true);
+    localStorage.setItem('includeTunes', true);
   }
 
   enableBoth() {
-    this.setState({includeMixes: true});
-    this.setState({includeSongs: true});
+    this.setState({
+      includeMixes: true,
+      includeTunes: true,
+    });
     localStorage.setItem('includeMixes', true);
-    localStorage.setItem('includeSongs', true);
+    localStorage.setItem('includeTunes', true);
   }
 
   searchForFile() {
@@ -167,10 +172,10 @@ class HelloWorld extends React.Component {
     var request = new XMLHttpRequest();
     request.timeout = 2000; // time in milliseconds
     let url = 'random/all';
-    if (!this.state.includeSongs && this.state.includeMixes) {
+    if (!this.state.includeTunes && this.state.includeMixes) {
       url = 'random/mixes';
-    } else if (this.state.includeSongs && !this.state.includeMixes) {
-      url = 'random/songs-and-tunes';
+    } else if (this.state.includeTunes && !this.state.includeMixes) {
+      url = 'random/tunes';
     }
     request.open('GET', url, true);
     // todo: find out where the lock is. This doesn't work as a fix really.
@@ -242,9 +247,9 @@ class HelloWorld extends React.Component {
 
     let stop = (<a onClick={this.state.thinking ? null : this.handleStopClick.bind(this)} className="stop">STOP</a>)
 
-    let mixes = (<div class={!this.state.includeSongs && this.state.includeMixes ? 'mixes enabled' : 'mixes disabled'} onClick={this.enableMixes.bind(this)}>Mixes</div>)
-    let songs = (<div class={this.state.includeSongs && !this.state.includeMixes ? 'songs enabled' : 'songs disabled'} onClick={this.enableSongs.bind(this)}>Songs</div>)
-    let both = (<div class={this.state.includeSongs && this.state.includeMixes ? 'both enabled' : 'both disabled'} onClick={this.enableBoth.bind(this)}>Both</div>)
+    let mixes = (<div class={!this.state.includeTunes && this.state.includeMixes ? 'mixes enabled' : 'mixes disabled'} onClick={this.enableMixes.bind(this)}>Mixes</div>)
+    let tunes = (<div class={this.state.includeTunes && !this.state.includeMixes ? 'tunes enabled' : 'tunes disabled'} onClick={this.enableTunes.bind(this)}>Tunes</div>)
+    let both = (<div class={this.state.includeTunes && this.state.includeMixes ? 'both enabled' : 'both disabled'} onClick={this.enableBoth.bind(this)}>Both</div>)
 
     let marquee = !this.state.enableVisuals ? (
       <Marquee>
@@ -258,7 +263,7 @@ class HelloWorld extends React.Component {
     return (
       <div className="container">
         <div className="controls">
-          <div class="mixes-or-songs">{mixes}{songs}{both}</div>
+          <div class="mixes-or-tunes">{mixes}{tunes}{both}</div>
           <div class="marquee" onClick={this.searchForFile.bind(this)}>
             {marquee}
           </div>
