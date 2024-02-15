@@ -62,3 +62,27 @@ sudo mount -t cifs -o ro,guest,vers=1.0 //192.168.769.857/music /files
 - possible api/ai based categorisation
 - browsable ui
 - better docs
+
+### Example nginx
+```
+upstream prod_http {
+    server 127.0.0.1:1337;
+    #server 192.168.1.2:1337;
+    keepalive 64;
+    keepalive_time 200m;
+    keepalive_timeout 180s;
+}
+
+server {
+        listen 80;
+        listen [::]:80;
+
+        server_name example.com;
+
+        location / {
+                proxy_pass  http://prod_http;
+                proxy_http_version 1.1;
+                proxy_set_header Connection "";
+        }
+}
+```
