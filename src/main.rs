@@ -1,14 +1,13 @@
 use rand::seq::SliceRandom;
 
 use murmurhash32::murmurhash3;
-use rusqlite::{params, Result as SQLiteResult};
+use rusqlite::params;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::convert::Infallible;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::{thread, time};
-use tantivy::doc;
 use walkdir::WalkDir;
 use warp::{http::Method, http::StatusCode, Filter, Rejection, Reply};
 
@@ -20,7 +19,6 @@ use crate::database::SQLite;
 mod music;
 use crate::music::File;
 use crate::music::FileHashed;
-mod search;
 use std::sync::{Arc, Mutex};
 
 use std::{
@@ -539,144 +537,6 @@ fn index_and_commit_to_db(f: &mut File) -> &mut File {
     }
 
     f
-}
-
-fn test_db() -> SQLiteResult<()> {
-    let query = "SELECT id, path, file_name, file_ext, file_size, file_modified, title, artist, album, duration, indexed_at, accessed_at FROM files LIMIT 0, 5";
-
-    let conn = SQLite::connect();
-    let mut stmt = conn.prepare(query)?;
-    let file_iter = stmt.query_map(params![], |row| {
-        Ok(File {
-            id: row.get(0)?,
-            path: row.get(1)?,
-            file_name: row.get(2)?,
-            file_ext: row.get(3)?,
-            file_size: row.get(4)?,
-            file_modified: row.get(5)?,
-            title: row.get(6)?,
-            artist: row.get(7)?,
-            album: row.get(8)?,
-            duration: row.get(9)?,
-            indexed_at: row.get(10)?,
-            accessed_at: row.get(11)?,
-            parse_fail: row.get(12)?,
-        })
-    })?;
-
-    for file in file_iter {
-        match file {
-            Ok(file) => println!("Found file id {:?}", file.id),
-            Err(error) => println!("ERROR: {:?}", error),
-        }
-    }
-
-    Ok(())
-}
-
-fn search_result_to_file(
-    id: u32,
-    path: String,
-    file_name: String,
-    file_ext: String,
-    file_size: u64,
-    file_modified: u64,
-    title: String,
-    artist: String,
-    album: String,
-    duration: u64,
-    indexed_at: u64,
-    accessed_at: u64,
-    parse_fail: bool,
-) -> SQLiteResult<File> {
-    let file = File {
-        id,
-        path,
-        file_name,
-        file_ext,
-        file_size,
-        file_modified,
-        title,
-        artist,
-        album,
-        duration: duration,
-        indexed_at: indexed_at,
-        accessed_at: accessed_at,
-        parse_fail: parse_fail,
-    };
-
-    Ok(file)
-}
-
-fn search_db(input: String) -> SQLiteResult<Vec<File>> {
-    let query = "SELECT * FROM `search` WHERE `search` MATCH :input;";
-
-    let conn = SQLite::connect();
-
-    let mut stmt = conn.prepare(query)?;
-    //let mut stmt = conn.prepare("SELECT * FROM `files` where `artist` LIKE :query;")?;
-
-    let rows = stmt.query_and_then(&[(":input", &input)], |row| {
-        search_result_to_file(
-            row.get(0)?,
-            row.get(1)?,
-            row.get(2)?,
-            row.get(3)?,
-            row.get(4)?,
-            row.get(5)?,
-            row.get(6)?,
-            row.get(7)?,
-            row.get(8)?,
-            row.get(9)?,
-            row.get(10)?,
-            row.get(11)?,
-            row.get(12)?,
-        )
-    })?;
-
-    let mut files: Vec<File> = Vec::new();
-
-    for result in rows {
-        let mut file = result.unwrap();
-        file.get_unique_id();
-        files.push(file);
-    }
-
-    Ok(files)
-}
-
-fn find_song_by_hash(input: String) -> SQLiteResult<Vec<File>> {
-    let query = "SELECT id, path, file_name, file_ext, title, artist, album, duration, indexed_at, accessed_at, parse_fail FROM `files` WHERE `id` IN (SELECT file FROM plays WHERE hash = :input) LIMIT 0, 1;";
-
-    let conn = SQLite::connect();
-
-    let mut stmt = conn.prepare(query)?;
-
-    let rows = stmt.query_and_then(&[(":input", &input)], |row| {
-        search_result_to_file(
-            row.get(0)?,
-            row.get(1)?,
-            row.get(2)?,
-            row.get(3)?,
-            row.get(4)?,
-            row.get(5)?,
-            row.get(6)?,
-            row.get(7)?,
-            row.get(8)?,
-            row.get(9)?,
-            row.get(10)?,
-            row.get(11)?,
-            row.get(12)?,
-        )
-    })?;
-
-    let mut files: Vec<File> = Vec::new();
-
-    for file in rows {
-        files.push(file?);
-    }
-
-    Ok(files)
 }
 
 fn get_file_from_hash(
