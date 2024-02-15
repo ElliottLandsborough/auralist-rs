@@ -43,8 +43,7 @@ impl File {
             title: self.title.clone(),
             artist: self.artist.clone(),
             album: self.album.clone(),
-            file: "".to_string(),
-            //file: self.file_name.clone(),
+            file: self.file_name.clone(),
         }
     }
 
