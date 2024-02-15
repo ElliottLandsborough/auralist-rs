@@ -26,6 +26,11 @@ use std::{
     io::{prelude::*, BufReader},
 };
 
+#[derive(Debug)]
+struct InvalidParameter;
+
+impl warp::reject::Reject for InvalidParameter {}
+
 fn main() {
     // murmurs with their file counterparts
     let files: HashMap<u32, File> = HashMap::new();
@@ -34,10 +39,6 @@ fn main() {
     // random ids that need to be sought
     let plays: HashMap<String, File> = HashMap::new();
     let plays_mutex = Arc::new(Mutex::new(plays));
-
-    // murmurs / durations
-    let durations: HashMap<u32, u64> = HashMap::new();
-    let durations_mutex = Arc::new(Mutex::new(durations));
 
     // murmurs of mixes
     let mixes: Vec<u32> = Vec::new();
@@ -52,6 +53,7 @@ fn main() {
     let to_be_indexed_mutex = Arc::new(Mutex::new(to_be_indexed));
 
     // murmurs that have been indexed
+    // note, we -never- remove a file from have_been_indexed
     let have_been_indexed: Vec<u32> = Vec::new();
     let have_been_indexed_mutex = Arc::new(Mutex::new(have_been_indexed));
 
@@ -86,7 +88,6 @@ fn main() {
             println!("Warming database with more file info...");
             warm(
                 files_mutex.clone(),
-                durations_mutex.clone(),
                 mixes_mutex.clone(),
                 tunes_mutex.clone(),
                 to_be_indexed_mutex.clone(),
@@ -142,7 +143,6 @@ async fn log_queues(
 #[tokio::main]
 async fn warm(
     files_mutex: Arc<std::sync::Mutex<std::collections::HashMap<u32, music::File>>>,
-    durations_mutex: Arc<std::sync::Mutex<std::collections::HashMap<u32, u64>>>,
     mixes_mutex: Arc<Mutex<Vec<u32>>>,
     tunes_mutex: Arc<Mutex<Vec<u32>>>,
     to_be_indexed_mutex: Arc<Mutex<Vec<u32>>>,
@@ -156,12 +156,15 @@ async fn warm(
 
         if !hash_to_be_indexed.is_none() {
             println!("Locking files (warm)...");
-            let mut files = files_mutex.lock().unwrap();
+            let files = files_mutex.lock().unwrap();
 
             let file = match files.get(&hash_to_be_indexed.unwrap()) {
                 Some(file) => Some(file.clone()),
                 None => None,
             };
+
+            println!("Unlocking files (warm)...");
+            drop(files);
 
             if !file.is_none() {
                 let mut f = file.unwrap();
@@ -171,61 +174,17 @@ async fn warm(
                     .as_secs();
                 f = index_and_commit_to_db(&mut f).clone();
 
-                // failed to parse the file OR the file length is longer than 200 minutes (12000 seconds)
-                if f.clone().parse_fail || f.duration > 12000 {
-                    // remove from list of files
-                    files.remove(&hash_to_be_indexed.unwrap());
-                } else {
-                    // update in-memory file record with extra info
-                    *files.get_mut(&hash_to_be_indexed.unwrap()).unwrap() = f.clone();
+                load_file_info_into_memory_and_mark_as_indexed(
+                    f.clone(),
+                    files_mutex.clone(),
+                    have_been_indexed_mutex.clone(),
+                    mixes_mutex.clone(),
+                    tunes_mutex.clone(),
+                )
 
-                    // todo: mirror the rest of this block in another section:
-                    // see get_all_db_files()
-
-                    // add to in memory list of files that have definitely been indexed
-                    // todo: make sure that the list of have_been_indexed isn't incorrectly used.
-                    println!("Locking have_been_indexed (warm)...");
-                    let mut have_been_indexed = have_been_indexed_mutex.lock().unwrap();
-                    have_been_indexed.push(hash_to_be_indexed.unwrap());
-                    have_been_indexed.dedup();
-                    println!("Unlocking have_been_indexed (warm)...");
-                    drop(have_been_indexed);
-
-                    // add to in memory list of files that have a duration
-                    println!("Locking durations (warm)...");
-                    let mut durations = durations_mutex.lock().unwrap();
-                    let f = f.clone();
-                    durations.insert(f.id, f.duration);
-                    println!("Unlocking durations (warm)...");
-                    drop(durations);
-
-                    // todo: dupe
-                    let mix_threshold = 13 * 60; // 13 minutes;
-                    if f.duration > mix_threshold {
-                        // add to in memory list of mixes
-                        println!("Locking mixes (warm)...");
-                        let mut mixes = mixes_mutex.lock().unwrap();
-                        let f = f.clone();
-                        mixes.push(f.id);
-                        println!("Unlocking mixes (warm)...");
-                        drop(mixes);
-                    } else {
-                        // add to in memory list of tunes
-                        println!("Locking tunes (warm)...");
-                        let mut tunes = tunes_mutex.lock().unwrap();
-                        let f = f.clone();
-                        tunes.push(f.id);
-                        println!("Unlocking tunes (warm)...");
-                        drop(tunes);
-                    }
-
-                    // todo: update search
-                    //search::write_index(f)
-                }
+                // todo: update search
+                //search::write_index(f)
             }
-
-            println!("Unlocking files (warm)...");
-            drop(files);
         } else {
             i = i + 1;
             if i == 10 {
@@ -247,41 +206,66 @@ fn load_old_data(
 
     for file in get_all_db_files() {
         println!("+");
-        println!("Locking files (load_old_data)...");
-        let mut files = files_mutex.lock().unwrap();
-        // Add it to our in memory list
-        files.insert(file.clone().id, file.clone());
-        println!("Unlocking files (load_old_data)...");
-        drop(files);
+        load_file_info_into_memory_and_mark_as_indexed(
+            file,
+            Arc::clone(&files_mutex),
+            Arc::clone(&have_been_indexed_mutex),
+            Arc::clone(&mixes_mutex),
+            Arc::clone(&tunes_mutex),
+        )
+    }
+}
 
-        // Add them all to have been indexed list
-        println!("Locking have_been_indexed (load_old_data)...");
-        let mut have_been_indexed = have_been_indexed_mutex.lock().unwrap();
-        have_been_indexed.push(file.id);
-        have_been_indexed.dedup();
-        println!("Unlocking have_been_indexed (load_old_data)...");
-        drop(have_been_indexed);
+fn load_file_info_into_memory_and_mark_as_indexed(
+    file: File,
+    files_mutex: Arc<std::sync::Mutex<HashMap<u32, File>>>,
+    have_been_indexed_mutex: Arc<Mutex<Vec<u32>>>,
+    mixes_mutex: Arc<Mutex<Vec<u32>>>,
+    tunes_mutex: Arc<Mutex<Vec<u32>>>,
+) {
+    // Skip files that couldn't be parsed by id3
+    if file.parse_fail {
+        return;
+    }
 
-        // todo: dupe
-        let f = file.clone();
-        let mix_threshold = 13 * 60;
-        if f.duration > mix_threshold {
-            // add to in memory list of mixes
-            println!("Locking mixes (warm)...");
-            let mut mixes = mixes_mutex.lock().unwrap();
-            let f = f.clone();
-            mixes.push(f.id);
-            println!("Unlocking mixes (warm)...");
-            drop(mixes);
-        } else {
-            // add to in memory list of tunes
-            println!("Locking tunes (warm)...");
-            let mut tunes = tunes_mutex.lock().unwrap();
-            let f = f.clone();
-            tunes.push(f.id);
-            println!("Unlocking tunes (warm)...");
-            drop(tunes);
-        }
+    // Skip files longer than 12000 seconds
+    if file.duration > 12000 {
+        return;
+    }
+
+    // Add the file info to the in memory list
+    println!("Locking files (load_file_info_into_memory_and_mark_as_indexed)...");
+    let mut files = files_mutex.lock().unwrap();
+    files.insert(file.clone().id, file.clone());
+    println!("Unlocking files (load_file_info_into_memory_and_mark_as_indexed)...");
+    drop(files);
+
+    // Add thre file info to the have been indexed list
+    println!("Locking have_been_indexed (load_file_info_into_memory_and_mark_as_indexed)...");
+    let mut have_been_indexed = have_been_indexed_mutex.lock().unwrap();
+    have_been_indexed.push(file.id);
+    have_been_indexed.dedup();
+    println!("Unlocking have_been_indexed (load_file_info_into_memory_and_mark_as_indexed)...");
+    drop(have_been_indexed);
+
+    let f = file.clone();
+    let mix_threshold = 23 * 60;
+    if f.duration > mix_threshold {
+        // add to in memory list of mixes
+        println!("Locking mixes (load_file_info_into_memory_and_mark_as_indexed)...");
+        let mut mixes = mixes_mutex.lock().unwrap();
+        let f = f.clone();
+        mixes.push(f.id);
+        println!("Unlocking mixes (load_file_info_into_memory_and_mark_as_indexed)...");
+        drop(mixes);
+    } else {
+        // add to in memory list of tunes
+        println!("Locking tunes (load_file_info_into_memory_and_mark_as_indexed)...");
+        let mut tunes = tunes_mutex.lock().unwrap();
+        let f = f.clone();
+        tunes.push(f.id);
+        println!("Unlocking tunes (load_file_info_into_memory_and_mark_as_indexed)...");
+        drop(tunes);
     }
 }
 
@@ -352,8 +336,8 @@ fn clear_plays(plays_mutex: Arc<Mutex<HashMap<String, File>>>) {
         let accessed_at = file.accessed_at;
         let duration = file.duration;
 
-        // if enough time has passed for the song to have played 4 times...
-        if now - accessed_at > duration * 4 {
+        // if enough time has passed for the song to have played twice...
+        if now - accessed_at > duration * 2 {
             println!("Locking plays (clear_plays)...");
             let mut plays = plays_mutex.lock().unwrap();
             // the url won't work anymore
@@ -361,7 +345,7 @@ fn clear_plays(plays_mutex: Arc<Mutex<HashMap<String, File>>>) {
             println!("Now: {:?}", now);
             println!("Accesed at: {:?}", accessed_at);
             println!("Duration: {:?}", duration);
-            println!("Duration*4: {:?}", duration * 4);
+            println!("Duration*2: {:?}", duration * 2);
 
             plays.remove(&hash);
             println!("Unlocking plays (clear_plays)...");
@@ -495,14 +479,16 @@ fn get_files(
 
                 drop(files);
 
+                // If the file is in the list of files in memory
                 if !current_file_in_memory_result.is_none() {
                     let current_file_in_memory = current_file_in_memory_result.unwrap();
-                    // File size has changed, index it
+
+                    // if the File size has changed, index it
                     if f.clone().file_size != current_file_in_memory.file_size {
                         index_the_file = true;
                     }
 
-                    // File modified has changed, index it
+                    // If the File modified has changed, index it
                     if f.clone().file_modified != current_file_in_memory.file_modified {
                         index_the_file = true;
                     }
@@ -766,7 +752,16 @@ pub async fn get_range(
     hash: String,
     plays_mutex: Arc<Mutex<HashMap<String, File>>>,
 ) -> Result<impl warp::Reply, Rejection> {
-    internal_get_range(range_header, hash, plays_mutex)
+    let file_option = get_file_from_hash(hash.clone(), plays_mutex);
+
+    if file_option.is_none() {
+        println!("Error in internal_get_range: get_file_from_hash returned None for hash: `{:?}`", hash.to_string());
+        return Err(warp::reject::custom(InvalidParameter));
+    }
+
+    let file = file_option.unwrap();
+
+    return internal_get_range(file, range_header)
         .await
         .map_err(|e| {
             println!("Error in get_range: {}", e.message);
@@ -825,21 +820,9 @@ impl From<ParseIntError> for Error {
 }
 
 async fn internal_get_range(
+    file: File,
     range_header: String,
-    hash: String,
-    plays_mutex: Arc<Mutex<HashMap<String, File>>>,
 ) -> Result<impl warp::Reply, Error> {
-    let file_option = get_file_from_hash(hash, plays_mutex);
-
-    if file_option.is_none() {
-        // Todo: return 404 here instead of 500
-        return Err(Error {
-            message: "Could not range. Hash not found.".to_string(),
-        });
-    }
-
-    let file = file_option.unwrap();
-
     let path = &file.path;
     let guess = mime_guess::from_ext(&file.file_ext).first().unwrap();
     let mime = guess.essence_str();
