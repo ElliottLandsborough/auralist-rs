@@ -173,49 +173,56 @@ async fn warm(
                     .as_secs();
                 f = index_and_commit_to_db(&mut f).clone();
 
-                if f.clone().parse_fail {
+                // failed to parse the file OR the file length is longer than 200 minutes (12000 seconds)
+                if f.clone().parse_fail || f.duration > 12000 {
+                    // remove from list of files
                     files.remove(&hash_to_be_indexed.unwrap());
                 } else {
+                    // update in-memory file record with extra info
                     *files.get_mut(&hash_to_be_indexed.unwrap()).unwrap() = f.clone();
+
+                    // todo: mirror the rest of this block in another section:
+                    // see get_all_db_files()
+
+                    // add to in memory list of files that have definitely been indexed
+                    // todo: make sure that the list of have_been_indexed isn't incorrectly used.
+                    println!("Locking have_been_indexed (warm)...");
+                    let mut have_been_indexed = have_been_indexed_mutex.lock().unwrap();
+                    have_been_indexed.push(hash_to_be_indexed.unwrap());
+                    have_been_indexed.dedup();
+                    println!("Unlocking have_been_indexed (warm)...");
+                    drop(have_been_indexed);
+
+                    // add to in memory list of files that have a duration
+                    println!("Locking durations (warm)...");
+                    let mut durations = durations_mutex.lock().unwrap();
+                    let f = f.clone();
+                    durations.insert(f.id, f.duration);
+                    println!("Unlocking durations (warm)...");
+                    drop(durations);
+
+                    // todo: dupe
+                    let mix_threshold = 13 * 60; // 13 minutes;
+                    if f.duration > mix_threshold {
+                        // add to in memory list of mixes
+                        println!("Locking mixes (warm)...");
+                        let mut mixes = mixes_mutex.lock().unwrap();
+                        let f = f.clone();
+                        mixes.push(f.id);
+                        println!("Unlocking mixes (warm)...");
+                        drop(mixes);
+                    } else {
+                        // add to in memory list of tunes
+                        println!("Locking tunes (warm)...");
+                        let mut tunes = tunes_mutex.lock().unwrap();
+                        let f = f.clone();
+                        tunes.push(f.id);
+                        println!("Unlocking tunes (warm)...");
+                        drop(tunes);
+                    }
 
                     // todo: update search
                     //search::write_index(f)
-                }
-
-                // add to in memory list of files that have definitely been indexed
-                println!("Locking have_been_indexed (warm)...");
-                let mut have_been_indexed = have_been_indexed_mutex.lock().unwrap();
-                have_been_indexed.push(hash_to_be_indexed.unwrap());
-                have_been_indexed.dedup();
-                println!("Unlocking have_been_indexed (warm)...");
-                drop(have_been_indexed);
-
-                // add to in memory list of files that have a duration
-                println!("Locking durations (warm)...");
-                let mut durations = durations_mutex.lock().unwrap();
-                let f = f.clone();
-                durations.insert(f.id, f.duration);
-                println!("Unlocking durations (warm)...");
-                drop(durations);
-
-                // todo: dupe
-                let mix_threshold = 13 * 60;
-                if f.duration > mix_threshold {
-                    // add to in memory list of mixes
-                    println!("Locking mixes (warm)...");
-                    let mut mixes = mixes_mutex.lock().unwrap();
-                    let f = f.clone();
-                    mixes.push(f.id);
-                    println!("Unlocking mixes (warm)...");
-                    drop(mixes);
-                } else {
-                    // add to in memory list of tunes
-                    println!("Locking tunes (warm)...");
-                    let mut tunes = tunes_mutex.lock().unwrap();
-                    let f = f.clone();
-                    tunes.push(f.id);
-                    println!("Unlocking tunes (warm)...");
-                    drop(tunes);
                 }
             }
 
