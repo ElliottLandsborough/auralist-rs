@@ -48,20 +48,21 @@ fn main() {
     let tunes: Vec<u32> = Vec::new();
     let tunes_mutex = Arc::new(Mutex::new(tunes));
 
-    // murmurs to be indexed
-    let to_be_indexed: Vec<u32> = Vec::new();
-    let to_be_indexed_mutex = Arc::new(Mutex::new(to_be_indexed));
+    // murmurs to be warmed
+    let to_be_warmed: Vec<u32> = Vec::new();
+    let to_be_warmed_mutex = Arc::new(Mutex::new(to_be_warmed));
 
-    // murmurs that have been indexed
-    // note, we -never- remove a file from have_been_indexed
-    let have_been_indexed: Vec<u32> = Vec::new();
-    let have_been_indexed_mutex = Arc::new(Mutex::new(have_been_indexed));
+    // murmurs that have been warmed
+    let have_been_warmed: Vec<u32> = Vec::new();
+    let have_been_warmed_mutex = Arc::new(Mutex::new(have_been_warmed));
 
+    println!("Loading old data...");
     SQLite::initialize();
+    println!("Finshed loading old data.");
 
     load_old_data(
-        files_mutex.clone(),
-        have_been_indexed_mutex.clone(),
+        files_mutex.clone(), 
+        have_been_warmed_mutex.clone(),
         mixes_mutex.clone(),
         tunes_mutex.clone(),
     );
@@ -72,16 +73,15 @@ fn main() {
             log_queues(
                 files_mutex.clone(),
                 plays_mutex.clone(),
-                to_be_indexed_mutex.clone(),
-                have_been_indexed_mutex.clone(),
+                to_be_warmed_mutex.clone(),
+                have_been_warmed_mutex.clone(),
             );
         });
         s.spawn(|| {
             println!("Indexing basic file information...");
             index(
                 files_mutex.clone(),
-                to_be_indexed_mutex.clone(),
-                have_been_indexed_mutex.clone(),
+                to_be_warmed_mutex.clone(),
             );
         });
         s.spawn(|| {
@@ -90,8 +90,8 @@ fn main() {
                 files_mutex.clone(),
                 mixes_mutex.clone(),
                 tunes_mutex.clone(),
-                to_be_indexed_mutex.clone(),
-                have_been_indexed_mutex.clone(),
+                to_be_warmed_mutex.clone(),
+                have_been_warmed_mutex.clone(),
             );
         });
         s.spawn(|| {
@@ -103,7 +103,7 @@ fn main() {
             serve(
                 files_mutex.clone(),
                 plays_mutex.clone(),
-                have_been_indexed_mutex.clone(),
+                have_been_warmed_mutex.clone(),
                 mixes_mutex.clone(),
                 tunes_mutex.clone(),
             );
@@ -116,24 +116,24 @@ fn main() {
 async fn log_queues(
     files_mutex: Arc<std::sync::Mutex<std::collections::HashMap<u32, music::File>>>,
     plays_mutex: Arc<Mutex<HashMap<String, File>>>,
-    to_be_indexed_mutex: Arc<Mutex<Vec<u32>>>,
-    have_been_indexed_mutex: Arc<Mutex<Vec<u32>>>,
+    to_be_warmed_mutex: Arc<Mutex<Vec<u32>>>,
+    have_been_warmed_mutex: Arc<Mutex<Vec<u32>>>,
 ) {
     loop {
         let files_mutex = files_mutex.lock().unwrap();
         let plays_mutex = plays_mutex.lock().unwrap();
-        let to_be_indexed_mutex = to_be_indexed_mutex.lock().unwrap();
-        let have_been_indexed_mutex = have_been_indexed_mutex.lock().unwrap();
+        let to_be_warmed = to_be_warmed_mutex.lock().unwrap();
+        let have_been_warmed = have_been_warmed_mutex.lock().unwrap();
 
         println!("Files: {:?}", files_mutex.len());
         println!("Plays: {:?}", plays_mutex.len());
-        println!("To be indexed: {:?}", to_be_indexed_mutex.len());
-        println!("Have been indexed: {:?}", have_been_indexed_mutex.len());
+        println!("To be warmed: {:?}", to_be_warmed.len());
+        println!("Have been warmed: {:?}", have_been_warmed.len());
 
         drop(files_mutex);
         drop(plays_mutex);
-        drop(to_be_indexed_mutex);
-        drop(have_been_indexed_mutex);
+        drop(to_be_warmed);
+        drop(have_been_warmed);
 
         println!("Sleeping for 10 seconds (log_queues)...");
         thread::sleep(time::Duration::from_secs(10));
@@ -145,20 +145,22 @@ async fn warm(
     files_mutex: Arc<std::sync::Mutex<std::collections::HashMap<u32, music::File>>>,
     mixes_mutex: Arc<Mutex<Vec<u32>>>,
     tunes_mutex: Arc<Mutex<Vec<u32>>>,
-    to_be_indexed_mutex: Arc<Mutex<Vec<u32>>>,
-    have_been_indexed_mutex: Arc<Mutex<Vec<u32>>>,
+    to_be_warmed_mutex: Arc<Mutex<Vec<u32>>>,
+    have_been_warmed_mutex: Arc<Mutex<Vec<u32>>>,
 ) {
     let mut i = 0;
     loop {
-        let mut to_be_indexed = to_be_indexed_mutex.lock().unwrap();
-        let hash_to_be_indexed = to_be_indexed.pop();
-        drop(to_be_indexed);
+        let mut to_be_warmed = to_be_warmed_mutex.lock().unwrap();
+        let hash_to_be_warmed = to_be_warmed.pop();
+        drop(to_be_warmed);
 
-        if !hash_to_be_indexed.is_none() {
+        if !hash_to_be_warmed.is_none() {
+            println!("Attempting to warm a file...");
             println!("Locking files (warm)...");
             let files = files_mutex.lock().unwrap();
 
-            let file = match files.get(&hash_to_be_indexed.unwrap()) {
+            println!("Checking if file has been warmed already...");
+            let file = match files.get(&hash_to_be_warmed.unwrap()) {
                 Some(file) => Some(file.clone()),
                 None => None,
             };
@@ -167,23 +169,34 @@ async fn warm(
             drop(files);
 
             if !file.is_none() {
+                println!("File does not exist in memory...");
                 let mut f = file.unwrap();
                 f.indexed_at = SystemTime::now()
                     .duration_since(UNIX_EPOCH)
                     .unwrap()
                     .as_secs();
-                f = index_and_commit_to_db(&mut f).clone();
 
-                load_file_info_into_memory_and_mark_as_indexed(
+                // get info from tags if possible
+                // https://docs.rs/lofty/latest/lofty/#supported-formats
+                if f.file_ext == "mp3" || f.file_ext == "flac" {
+                    println!("---------- TRIGGER A LOFTY POPULATE...");
+                    f.populate_lofty();
+                }
+
+                f.save_to_database();
+
+                load_file_info_into_memory_and_mark_as_warmed(
                     f.clone(),
                     files_mutex.clone(),
-                    have_been_indexed_mutex.clone(),
+                    have_been_warmed_mutex.clone(),
                     mixes_mutex.clone(),
                     tunes_mutex.clone(),
-                )
+                );
 
                 // todo: update search
                 //search::write_index(f)
+            } else {
+                println!("This file doesn't need to be warmed, it already has been...");
             }
         } else {
             i = i + 1;
@@ -196,30 +209,30 @@ async fn warm(
 }
 
 fn load_old_data(
-    files_mutex: Arc<std::sync::Mutex<HashMap<u32, File>>>,
-    have_been_indexed_mutex: Arc<Mutex<Vec<u32>>>,
+    files_mutex: Arc<Mutex<HashMap<u32, File>>>,
+    have_been_warmed_mutex: Arc<Mutex<Vec<u32>>>,
     mixes_mutex: Arc<Mutex<Vec<u32>>>,
     tunes_mutex: Arc<Mutex<Vec<u32>>>,
 ) {
     // Grab all files from the sqlite database if possible
     println!("+ Loading old data");
 
-    for file in get_all_db_files() {
-        println!("+");
-        load_file_info_into_memory_and_mark_as_indexed(
-            file,
-            Arc::clone(&files_mutex),
-            Arc::clone(&have_been_indexed_mutex),
-            Arc::clone(&mixes_mutex),
-            Arc::clone(&tunes_mutex),
-        )
+    for f in get_all_db_files() {
+        println!("+ Got a file from the database...");
+        load_file_info_into_memory_and_mark_as_warmed(
+            f,
+            files_mutex.clone(),
+            have_been_warmed_mutex.clone(),
+            mixes_mutex.clone(),
+            tunes_mutex.clone(),
+        );
     }
 }
 
-fn load_file_info_into_memory_and_mark_as_indexed(
-    file: File,
+fn load_file_info_into_memory_and_mark_as_warmed(
+    mut file: File,
     files_mutex: Arc<std::sync::Mutex<HashMap<u32, File>>>,
-    have_been_indexed_mutex: Arc<Mutex<Vec<u32>>>,
+    have_been_warmed_mutex: Arc<Mutex<Vec<u32>>>,
     mixes_mutex: Arc<Mutex<Vec<u32>>>,
     tunes_mutex: Arc<Mutex<Vec<u32>>>,
 ) {
@@ -234,37 +247,33 @@ fn load_file_info_into_memory_and_mark_as_indexed(
     }
 
     // Add the file info to the in memory list
-    println!("Locking files (load_file_info_into_memory_and_mark_as_indexed)...");
-    let mut files = files_mutex.lock().unwrap();
-    files.insert(file.clone().id, file.clone());
-    println!("Unlocking files (load_file_info_into_memory_and_mark_as_indexed)...");
-    drop(files);
+    file.insert_into_memory(files_mutex);
 
-    // Add thre file info to the have been indexed list
-    println!("Locking have_been_indexed (load_file_info_into_memory_and_mark_as_indexed)...");
-    let mut have_been_indexed = have_been_indexed_mutex.lock().unwrap();
-    have_been_indexed.push(file.id);
-    have_been_indexed.dedup();
-    println!("Unlocking have_been_indexed (load_file_info_into_memory_and_mark_as_indexed)...");
-    drop(have_been_indexed);
+    // Add the file info to the have been indexed list
+    println!("Locking have_been_warmed (load_file_info_into_memory_and_mark_as_warmed)...");
+    let mut have_been_warmed = have_been_warmed_mutex.lock().unwrap();
+    have_been_warmed.push(file.id);
+    have_been_warmed.dedup();
+    println!("Unlocking have_been_warmed (load_file_info_into_memory_and_mark_as_warmed)...");
+    drop(have_been_warmed);
 
     let f = file.clone();
     let mix_threshold = 23 * 60;
     if f.duration > mix_threshold {
         // add to in memory list of mixes
-        println!("Locking mixes (load_file_info_into_memory_and_mark_as_indexed)...");
+        println!("Locking mixes (load_file_info_into_memory_and_mark_as_warmed)...");
         let mut mixes = mixes_mutex.lock().unwrap();
         let f = f.clone();
         mixes.push(f.id);
-        println!("Unlocking mixes (load_file_info_into_memory_and_mark_as_indexed)...");
+        println!("Unlocking mixes (load_file_info_into_memory_and_mark_as_warmed)...");
         drop(mixes);
     } else {
         // add to in memory list of tunes
-        println!("Locking tunes (load_file_info_into_memory_and_mark_as_indexed)...");
+        println!("Locking tunes (load_file_info_into_memory_and_mark_as_warmed)...");
         let mut tunes = tunes_mutex.lock().unwrap();
         let f = f.clone();
         tunes.push(f.id);
-        println!("Unlocking tunes (load_file_info_into_memory_and_mark_as_indexed)...");
+        println!("Unlocking tunes (load_file_info_into_memory_and_mark_as_warmed)...");
         drop(tunes);
     }
 }
@@ -357,8 +366,7 @@ fn clear_plays(plays_mutex: Arc<Mutex<HashMap<String, File>>>) {
 #[tokio::main]
 async fn index(
     files_mutex: Arc<std::sync::Mutex<HashMap<u32, File>>>,
-    to_be_indexed_mutex: Arc<Mutex<Vec<u32>>>,
-    have_been_indexed_mutex: Arc<Mutex<Vec<u32>>>,
+    to_be_warmed_mutex: Arc<Mutex<Vec<u32>>>,
 ) {
     // todo: make this a command line arg
     let directory_to_index = "./files";
@@ -391,8 +399,7 @@ async fn index(
         directory_to_index.to_string(),
         directory_exclusions,
         files_mutex,
-        to_be_indexed_mutex,
-        have_been_indexed_mutex,
+        to_be_warmed_mutex,
     ) {
         Ok(_) => println!("Finished getting files."),
         Err(err) => println!("{}", err),
@@ -411,12 +418,9 @@ fn get_files(
     directory: std::string::String,
     exclusions: Vec<std::string::String>,
     files_mutex: Arc<std::sync::Mutex<HashMap<u32, File>>>,
-    to_be_indexed_mutex: Arc<Mutex<Vec<u32>>>,
-    have_been_indexed_mutex: Arc<Mutex<Vec<u32>>>,
+    to_be_warmed_mutex: Arc<Mutex<Vec<u32>>>,
 ) -> Result<(), walkdir::Error> {
-    println!("Walking files and saving to vector...");
-
-    let cloned_files_mutex = files_mutex.clone();
+    println!("Walking files...");
 
     'entries: for entry in WalkDir::new(directory) {
         let entry = match entry {
@@ -442,87 +446,73 @@ fn get_files(
 
             let extensions_to_index: Vec<&str> = binding.split(",").collect();
 
-            println!("Run populate_from_path (get_files)...");
-            let f = File::populate_from_path(&path);
+            let f = File::new_empty_file_from_path(&path);
 
             if extensions_to_index.contains(&&f.file_ext.as_str()) {
                 let file_hash = murmurhash3(f.path.as_bytes());
 
-                let mut index_the_file = false;
+                let mut warm_the_file = false;
 
-                let have_been_indexed = have_been_indexed_mutex.lock().unwrap();
-                let current_file_has_been_indexed =
-                    match have_been_indexed.binary_search(&file_hash) {
-                        Ok(_u) => true,
-                        Err(_e) => false,
-                    };
-                drop(have_been_indexed);
-
-                // The file is not marked as indexed
-                if !current_file_has_been_indexed {
-                    println!("Locking files (get_files1)...");
-                    let mut files = cloned_files_mutex.lock().unwrap();
-                    files.insert(file_hash.clone(), f.clone());
-                    println!("Unlocking files (get_files1)...");
-                    drop(files);
-                    index_the_file = true;
-                }
+                let mut f = File::new_empty_file_from_path(path);
+                f.populate_from_path();
 
                 println!("Locking files (get_files2)...");
                 let files_mutex = files_mutex.clone();
                 let files = files_mutex.lock().unwrap();
-
+                println!("Trying to get file from memory...");
                 let current_file_in_memory_result = match files.get(&file_hash) {
                     Some(file) => Some(file.clone()),
                     _ => None,
                 };
-
+                println!("Unlocking files (get_files2)...");
                 drop(files);
 
                 // If the file is in the list of files in memory
                 if !current_file_in_memory_result.is_none() {
+                    println!("File is in memory already...");
                     let current_file_in_memory = current_file_in_memory_result.unwrap();
 
-                    // if the File size has changed, index it
+                    // if the File size has changed, update the memory record and mark it for warming
                     if f.clone().file_size != current_file_in_memory.file_size {
-                        index_the_file = true;
+                        println!("File size has changed, it will be warmed...");
+                        f.insert_into_memory(Arc::clone(&files_mutex));
+                        warm_the_file = true;
                     }
 
                     // If the File modified has changed, index it
                     if f.clone().file_modified != current_file_in_memory.file_modified {
-                        index_the_file = true;
+                        println!("File modified time has changed, it will be warmed...");
+                        f.insert_into_memory(Arc::clone(&files_mutex));
+                        warm_the_file = true;
                     }
-
-                    if index_the_file == true {
-                        println!("Locking to_be_indexed (get_files)...");
-                        let mut to_be_indexed = to_be_indexed_mutex.lock().unwrap();
-                        to_be_indexed.push(file_hash);
-                        to_be_indexed.dedup();
-                        println!("Unlocking to_be_indexed (get_files)...");
-                        drop(to_be_indexed);
-                    }
+                } else {
+                    println!("File is not in memory...");
+                    f.insert_into_memory(Arc::clone(&files_mutex));
+                    warm_the_file = true;
                 }
 
-                println!("Unlocking files (get_files2)...");
+                if warm_the_file == true {
+                    println!("Queueing the file to be warmed...");
+                    println!("Locking to_be_warmed (get_files)...");
+                    let mut to_be_warmed = to_be_warmed_mutex.lock().unwrap();
+                    if !to_be_warmed.contains(&file_hash) {
+                        println!("Queueing file to be indexed...");
+                        to_be_warmed.push(file_hash);
+                        to_be_warmed.dedup();
+                    } else {
+                        println!("File is already queued to be indexed...");
+                    }
+                    println!("Unlocking to_be_warmed (get_files)...");
+                    drop(to_be_warmed);
+                } else {
+                    println!("Did not queue the file to be indexed...");
+                }
             }
         }
         println!("END (get_files)...");
     }
 
     Ok(())
-}
-
-fn index_and_commit_to_db(f: &mut File) -> &mut File {
-    // https://docs.rs/lofty/latest/lofty/#supported-formats
-    if f.file_ext == "mp3" || f.file_ext == "flac" {
-        f.populate_lofty();
-    }
-
-    if !f.parse_fail {
-        f.save_to_database();
-    }
-
-    f
 }
 
 fn get_file_from_hash(
@@ -616,13 +606,13 @@ struct FileResponse {
 async fn serve(
     files_mutex: Arc<std::sync::Mutex<std::collections::HashMap<u32, music::File>>>,
     plays_mutex: Arc<Mutex<HashMap<String, File>>>,
-    have_been_indexed_mutex: Arc<Mutex<Vec<u32>>>,
+    have_been_warmed_mutex: Arc<Mutex<Vec<u32>>>,
     mixes_mutex: Arc<Mutex<Vec<u32>>>,
     tunes_mutex: Arc<Mutex<Vec<u32>>>,
 ) {
     println!("SERVING");
     let files_mutex_1 = Arc::clone(&files_mutex);
-    let have_been_indexed_mutex_1 = Arc::clone(&have_been_indexed_mutex);
+    let have_been_warmed_mutex = Arc::clone(&have_been_warmed_mutex);
     let mixes_mutex_1 = Arc::clone(&mixes_mutex);
     let tunes_mutex_1 = Arc::clone(&tunes_mutex);
 
@@ -664,10 +654,10 @@ async fn serve(
     // domain.tld/random
     let random = warp::path!("random" / String).map(move |mode: String| {
         println!("START (route:random)...");
-        let hbim = Arc::clone(&have_been_indexed_mutex_1);
-        let mm = Arc::clone(&mixes_mutex_1);
-        let tm = Arc::clone(&tunes_mutex_1);
-        let random_hash = random_hash(hbim, mm, tm, mode.to_string());
+        let all = Arc::clone(&have_been_warmed_mutex);
+        let mixes = Arc::clone(&mixes_mutex_1);
+        let tunes = Arc::clone(&tunes_mutex_1);
+        let random_hash = random_hash(all, mixes, tunes, mode.to_string());
         let fm = Arc::clone(&files_mutex_1);
         let response = generate_random_response(&fm, &plays_mutex_1, random_hash);
         println!("END (route:random)...");
@@ -755,18 +745,19 @@ pub async fn get_range(
     let file_option = get_file_from_hash(hash.clone(), plays_mutex);
 
     if file_option.is_none() {
-        println!("Error in internal_get_range: get_file_from_hash returned None for hash: `{:?}`", hash.to_string());
+        println!(
+            "Error in internal_get_range: get_file_from_hash returned None for hash: `{:?}`",
+            hash.to_string()
+        );
         return Err(warp::reject::custom(InvalidParameter));
     }
 
     let file = file_option.unwrap();
 
-    return internal_get_range(file, range_header)
-        .await
-        .map_err(|e| {
-            println!("Error in get_range: {}", e.message);
-            warp::reject()
-        })
+    return internal_get_range(file, range_header).await.map_err(|e| {
+        println!("Error in get_range: {}", e.message);
+        warp::reject()
+    });
 }
 
 /// This function adds the "206 Partial Content" header
@@ -819,10 +810,7 @@ impl From<ParseIntError> for Error {
     }
 }
 
-async fn internal_get_range(
-    file: File,
-    range_header: String,
-) -> Result<impl warp::Reply, Error> {
+async fn internal_get_range(file: File, range_header: String) -> Result<impl warp::Reply, Error> {
     let path = &file.path;
     let guess = mime_guess::from_ext(&file.file_ext).first().unwrap();
     let mime = guess.essence_str();
@@ -862,15 +850,13 @@ async fn internal_get_range(
 }
 
 fn random_hash(
-    have_been_indexed_mutex: Arc<Mutex<Vec<u32>>>,
+    all_mutex: Arc<Mutex<Vec<u32>>>,
     mixes_mutex: Arc<Mutex<Vec<u32>>>,
     tunes_mutex: Arc<Mutex<Vec<u32>>>,
     mode: String,
 ) -> u32 {
-    println!("Locking have_been_indexed_mutex (random_hash)...");
-
     // all files
-    let mut selection_mutex = have_been_indexed_mutex;
+    let mut selection_mutex = all_mutex;
 
     if mode == "tunes" {
         selection_mutex = tunes_mutex;
@@ -880,6 +866,7 @@ fn random_hash(
         selection_mutex = mixes_mutex;
     }
 
+    println!("Locking selection_mutex (random_hash)...");
     let selection = selection_mutex.lock().unwrap();
     let random_hash_opt = selection.choose(&mut rand::thread_rng());
 

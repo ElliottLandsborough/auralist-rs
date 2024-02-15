@@ -47,10 +47,10 @@ impl File {
         }
     }
 
-    pub fn populate_from_path(path: &Path) -> File {
+    pub fn new_empty_file_from_path(path: &Path) -> File {
+        println!("Creating a new empty file struct based on path...");
         let path_string = path.to_str().unwrap().to_string();
         let file_name = String::from(path.file_name().unwrap().to_string_lossy());
-        let file = StdFsFile::open(path).unwrap();
 
         println!("--- File: {} ---", file_name);
 
@@ -59,7 +59,48 @@ impl File {
             None => String::from(""),
         };
 
-        println!("--- HASH {:?} ---", murmurhash3(path_string.as_bytes()));
+        File {
+            id: murmurhash3(path_string.as_bytes()),
+            path: path_string,
+            file_name: file_name,
+            file_ext: file_ext.clone(),
+            file_size: 0,
+            file_modified: 0,
+            title: "".to_string(),
+            artist: "".to_string(),
+            album: "".to_string(),
+            duration: 0,
+            indexed_at: 0,
+            accessed_at: 0,
+            parse_fail: false,
+        }
+    }
+
+    pub fn insert_into_memory(
+        &mut self,
+        files_mutex: std::sync::Arc<std::sync::Mutex<std::collections::HashMap<u32, File>>>,
+    ) {
+        println!("Locking files (insert_into_memory)...");
+        let mut files: std::sync::MutexGuard<'_, std::collections::HashMap<u32, File>> =
+            files_mutex.lock().unwrap();
+        println!("Inserting file into memory...");
+        files.insert(self.id, self.clone());
+        println!("Unlocking files (insert_into_memory)...");
+        drop(files);
+    }
+
+    // Gets basic file info - no tags
+    pub fn populate_from_path(&mut self) {
+        println!("Run populate_from_path()...");
+        if self.path == "" {
+            panic!("Can't populate from path when file struct has no path!");
+        }
+
+        if self.id == 0 {
+            panic!("Can't populate from path when file struct has no id!");
+        }
+
+        let file = StdFsFile::open(&self.path).unwrap();
 
         println!("--- System time... ---");
         let modified_system_time = match file.metadata().unwrap().modified() {
@@ -73,26 +114,18 @@ impl File {
             .unwrap()
             .as_secs();
 
-        println!("--- Create struct from info... ---");
-        let f = File {
-            id: murmurhash3(path_string.as_bytes()),
-            path: path_string,
-            file_name: file_name,
-            file_ext: file_ext.clone(),
-            file_size: file.metadata().unwrap().len(),
-            file_modified: file_mtime,
-            title: "".to_string(),
-            artist: "".to_string(),
-            album: "".to_string(),
-            duration: 0,
-            indexed_at: 0,
-            accessed_at: 0,
-            parse_fail: false,
-        };
+        println!("--- Populating file struct with basic info (index)... ---");
 
-        println!("--- Return struct... ---");
-
-        return f;
+        self.file_size = file.metadata().unwrap().len();
+        self.file_modified = file_mtime;
+        self.title = "".to_string();
+        self.artist = "".to_string();
+        self.album = "".to_string();
+        self.duration = 0;
+        self.indexed_at = 0;
+        self.accessed_at = 0;
+        self.parse_fail = false;
+        println!("END populate_from_path()...");
     }
 
     pub fn save_to_database(&self) {
