@@ -134,13 +134,15 @@ class HelloWorld extends React.Component {
   stop() {
     if (this.isPlaying() || this.state.howl) {
       this.state.howl.stop();
-      this.reportPlayState();
     }
+    this.reportPlayState();
+    this.setState({
+      thinking: false,
+      hypnotize: false,
+    });
   }
 
   play(url, ext) {
-    this.stop();
-
     let self = this;
 
     this.state.howl = new Howl({
@@ -152,12 +154,19 @@ class HelloWorld extends React.Component {
         sound.once('unlock', function() {
           sound.play();
         });
+        self.setState({
+          thinking: false,
+          hypnotize: false,
+        });
       },
       onplay: function() {
         self.reportPlayState();
+        self.setState({
+          thinking: false,
+          hypnotize: true,
+        });
       },
       onend: function() {
-        self.stop();
         self.getAndPlay();
       }
     });
@@ -187,7 +196,6 @@ class HelloWorld extends React.Component {
       console.log('Timeout :(');
       console.log('Retry number: ' + alreadyRetried);
       if (alreadyRetried !== 2) {
-        self.stop();
         self.getAndPlay(alreadyRetried + 1)
       } else {
         self.stop();
@@ -202,7 +210,7 @@ class HelloWorld extends React.Component {
           console.log("No data in response or response was invalid.");
           self.setState({
             thinking: false,
-            hypnotize: true,
+            hypnotize: false,
           });
           return;
         }
@@ -224,10 +232,6 @@ class HelloWorld extends React.Component {
         self.stop();
         self.play(url, ext);
       }
-      self.setState({
-        thinking: false,
-        hypnotize: true,
-      });
     }
     request.send();
   }
