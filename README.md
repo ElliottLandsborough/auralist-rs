@@ -51,16 +51,11 @@ make reset
 sudo mount -t cifs -o ro,guest,vers=1.0 //192.168.769.857/music /files
 ```
 ### Todo
-- work out why it stops sometimes
 - total/elapsed time
 - show a waveform
 - skip through
 - make milkdrop respond properly
 - page with stats
-- need to see distribution of song lengths
-- button to press when song fails
-- possible api/ai based categorisation
-- browsable ui
 - better docs
 
 ### Example nginx
@@ -82,7 +77,7 @@ server {
         location / {
                 proxy_pass  http://prod_http;
                 proxy_http_version 1.1;
-                proxy_set_header Connection "";
+                #proxy_set_header Connection "";
         }
 }
 ```
