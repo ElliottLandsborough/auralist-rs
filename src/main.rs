@@ -827,8 +827,6 @@ fn random_hash(
     tunes_mutex: Arc<Mutex<Vec<u32>>>,
     mode: String,
 ) -> u32 {
-    thread::sleep(time::Duration::from_secs(2));
-
     // all files
     let mut selection_mutex = all_mutex;
 
@@ -844,8 +842,13 @@ fn random_hash(
     let selection = selection_mutex.lock().unwrap();
     let random_hash_opt = selection.choose(&mut rand::thread_rng());
 
-    return match random_hash_opt {
+    let answer = match random_hash_opt {
         Some(random_hash_opt) => u32::from(random_hash_opt.clone()),
         None => 0,
     };
+
+    // wait for 2 seconds
+    thread::sleep(time::Duration::from_secs(2));
+
+    return answer;
 }
