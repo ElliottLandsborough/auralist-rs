@@ -667,8 +667,6 @@ async fn serve(
     let gets = warp::get()
         .and(
             default
-                .or(favicon)
-                //.or(search)
                 .or(random)
                 .or(stream)
                 .or(download)
