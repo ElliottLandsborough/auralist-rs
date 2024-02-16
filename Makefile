@@ -13,10 +13,16 @@ pull:
 	docker pull scruples/auralist:latest
 
 build:
+	rm -r static || true
+	yarn run build
 	docker system prune --all --force
 	docker build -t auralist:latest .
 	docker tag auralist:latest scruples/auralist:latest
 	docker push scruples/auralist:latest
+
+build_frontend:
+	rm -r static || true
+	yarn run build
 
 run:
 	docker rm auralist || true
