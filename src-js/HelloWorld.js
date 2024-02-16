@@ -2,8 +2,8 @@ import 'style.css';
 import React from 'react';
 import {Howl, Howler} from 'howler';
 import MilkDrop from './MilkDrop';
-import loadingAnimationSvg from '../images/loading.svg';
-import loadingHypnoSvg from '../images/hypnotize.svg';
+import {LoadingSvg} from './LoadingSvg.jsx'
+import {HypnotizeSvg} from './HypnotizeSvg.jsx';
 import Marquee from "react-fast-marquee";
 
 class HelloWorld extends React.Component {
@@ -255,8 +255,9 @@ class HelloWorld extends React.Component {
       )
     }
 
-    let loadingAnimation = <img src={loadingAnimationSvg}></img>
-    let hypnotize = <img src={loadingHypnoSvg}></img>
+    let loadingAnimation = <LoadingSvg />
+    let hypnotize = <HypnotizeSvg />
+
     let hypnotizer = (this.state.hypnotize && this.state.playing && !this.state.enableVisuals ? <div class="hypnotizer" onClick={this.enableVisualsHandler.bind(this)}>{hypnotize}</div> : '')
 
     let playNextSong = (<a onClick={this.state.thinking ? null : this.handleRandomClick.bind(this)} className="play">{this.state.thinking ? loadingAnimation : "RANDOM"}</a>)

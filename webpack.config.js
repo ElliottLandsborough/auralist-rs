@@ -16,13 +16,6 @@ module.exports = {
   module: {
     rules: [
       {
-        test: /\.(png|jp(e*)g|svg|gif)$/,
-        type: "asset/resource",
-        generator: {
-          filename: 'svg/[hash][ext][query]'
-        },
-      },
-      {
         test: /\.(js|jsx)$/,
         exclude: /node_modules/,
         use: {
@@ -50,7 +43,6 @@ module.exports = {
   plugins: [
     new HtmlWebPackPlugin({
       template: './src-js/index.html',
-      favicon: './images/favicon.svg',
       minify: {
         collapseWhitespace: true,
         removecomments: false,

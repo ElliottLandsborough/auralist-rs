@@ -97,7 +97,6 @@ body {
     position: absolute;
     left: 0;
     top: 0;
-
 }
 .mixes-or-tunes .tunes {
     margin-left: auto;
@@ -144,8 +143,11 @@ body {
     -moz-box-sizing: border-box;
     -webkit-box-sizing: border-box;
 }
-.play img {
+.play .loading-spinner {
     height: 100%;
+    margin: 0 auto;
+    width: 100%;
+    cursor: not-allowed;
 }
 .play-container {
     position: relative;
@@ -164,7 +166,7 @@ body {
     border: 2px solid #000000;
     cursor: zoom-in;
 }
-.play-container .hypnotizer img {
+.play-container .hypnotizer svg {
     animation: rotateHypnotizer 2s linear infinite;
     width: 200%;
     height: 200%;
