@@ -621,7 +621,10 @@ async fn serve(
     let default = warp::path::end().and(warp::fs::file("static/index.html"));
 
     // domain.tld/js/*
-    let js = warp::path("js").and(warp::fs::dir("static/js"));
+    let js = warp::path("js").and(warp::fs::dir("static/js")).map(|res: warp::fs::File| {
+        // cache for 23 days
+        warp::reply::with_header(res, "cache-control", "Cache-Control: public, max-age 1987200, s-maxage 1987200, immutable")
+    });
 
     // domain.tld/random
     let random = warp::path!("random" / String).map(move |mode: String| {
