@@ -174,7 +174,7 @@ class HelloWorld extends React.Component {
       hypnotize: false,
     });
     var request = new XMLHttpRequest();
-    request.timeout = 1000; // time in milliseconds
+    request.timeout = 10000; // time in milliseconds
     let url = 'random/all';
     if (!this.state.includeTunes && this.state.includeMixes) {
       url = 'random/mixes';
@@ -200,13 +200,10 @@ class HelloWorld extends React.Component {
         // todo: this is a bit messy, perhaps return a 404
         if (!resp || !obj || !("data" in obj)) {
           console.log("No data in response or response was invalid.");
-          setTimeout(
-            () => self.setState({
-              thinking: false,
-              hypnotize: false,
-            }),
-            1000
-          );
+          self.setState({
+            thinking: false,
+            hypnotize: true,
+          });
           return;
         }
         const path = obj.data[0].path;
@@ -227,14 +224,10 @@ class HelloWorld extends React.Component {
         self.stop();
         self.play(url, ext);
       }
-      // Wait before allowing another click
-      setTimeout(
-        () => self.setState({
-          thinking: false,
-          hypnotize: true,
-        }), 
-        1000
-      );
+      self.setState({
+        thinking: false,
+        hypnotize: true,
+      });
     }
     request.send();
   }

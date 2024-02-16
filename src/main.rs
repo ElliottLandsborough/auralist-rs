@@ -61,7 +61,7 @@ fn main() {
     println!("Finshed loading old data.");
 
     load_old_data(
-        files_mutex.clone(), 
+        files_mutex.clone(),
         have_been_warmed_mutex.clone(),
         mixes_mutex.clone(),
         tunes_mutex.clone(),
@@ -79,10 +79,7 @@ fn main() {
         });
         s.spawn(|| {
             println!("Indexing basic file information...");
-            index(
-                files_mutex.clone(),
-                to_be_warmed_mutex.clone(),
-            );
+            index(files_mutex.clone(), to_be_warmed_mutex.clone());
         });
         s.spawn(|| {
             println!("Warming database with more file info...");
@@ -656,7 +653,7 @@ async fn serve(
         println!("START (route:random)...");
         let all = Arc::clone(&have_been_warmed_mutex);
         let mixes = Arc::clone(&mixes_mutex_1);
-        let tunes = Arc::clone(&tunes_mutex_1);
+        let tunes: Arc<Mutex<Vec<u32>>> = Arc::clone(&tunes_mutex_1);
         let random_hash = random_hash(all, mixes, tunes, mode.to_string());
         let fm = Arc::clone(&files_mutex_1);
         let response = generate_random_response(&fm, &plays_mutex_1, random_hash);
@@ -855,6 +852,8 @@ fn random_hash(
     tunes_mutex: Arc<Mutex<Vec<u32>>>,
     mode: String,
 ) -> u32 {
+    thread::sleep(time::Duration::from_secs(2));
+
     // all files
     let mut selection_mutex = all_mutex;
 
