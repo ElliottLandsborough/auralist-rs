@@ -59,7 +59,7 @@ dependencies = [
 
 [[package]]
 name = "auralist-rs"
-version = "0.0.3"
+version = "0.0.23"
 dependencies = [
  "async-stream",
  "flate2",
