@@ -197,8 +197,6 @@ class HelloWorld extends React.Component {
       console.log('Retry number: ' + alreadyRetried);
       if (alreadyRetried !== 2) {
         self.getAndPlay(alreadyRetried + 1)
-      } else {
-        self.stop();
       }
     };
     request.onload = function() {
