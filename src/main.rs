@@ -620,33 +620,8 @@ async fn serve(
     // default e.g https://domain.tld
     let default = warp::path::end().and(warp::fs::file("static/index.html"));
 
-    // domain.tld/favicon.svg
-    let favicon = warp::path("favicon.svg").and(warp::fs::file("static/favicon.svg"));
-
     // domain.tld/js/*
     let js = warp::path("js").and(warp::fs::dir("static/js"));
-
-    // domain.tld/svg/*
-    let svg = warp::path("svg").and(warp::fs::dir("static/svg"));
-
-    /*
-    // domain.tld/search/[anything]
-    let search = warp::path!("search" / String).map(|query| {
-        let files = match search_db(query) {
-            Ok(files) => files,
-            Err(error) => panic!("Problem with search: {:?}", error),
-        };
-
-        let response = FileResponse {
-            status: 200,
-            message: "OK".to_string(),
-            count: files.len(),
-            data: files,
-        };
-
-        warp::reply::json(&response)
-    });
-    */
 
     // domain.tld/random
     let random = warp::path!("random" / String).map(move |mode: String| {
@@ -698,7 +673,6 @@ async fn serve(
                 .or(stream)
                 .or(download)
                 .or(js)
-                .or(svg),
         )
         .with(cors)
         .recover(handle_rejection);
