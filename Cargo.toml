@@ -32,7 +32,7 @@ rand = "0.8.5"
 murmurhash32 = "0.3.0"
 
 [dependencies.rusqlite]
-version = "0.30.0"
+version = "0.31.0"
 default-features = false # don't include any defaults
 #features = ["backup"] # see rusqlite/blob/master/Cargo.toml
 features = ["backup", "blob", "serde_json", "bundled"]
