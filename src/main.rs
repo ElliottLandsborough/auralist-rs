@@ -637,8 +637,13 @@ async fn serve(
     let stream = warp::path!("stream" / String)
         .and(filter_range())
         .and_then(move |hash: String, range_header: String| {
+            println!("START (stream/[anything])...");
             let plays_mutex = plays_mutex_2.clone();
-            get_range(range_header, hash, plays_mutex)
+
+            // hash e.g 1f768ac1-6e83-4f12-a4c3-ad37f6d93844
+            let sliced_hash = hash[0..36].to_string();
+
+            get_range(range_header, sliced_hash, plays_mutex)
         })
         .map(with_partial_content_status);
 
@@ -699,6 +704,7 @@ use warp::{http::HeaderValue, hyper::Body, hyper::HeaderMap, reply::WithStatus};
 
 /// This function filters and extracts the "Range"-Header
 pub fn filter_range() -> impl Filter<Extract = (String,), Error = Rejection> + Copy {
+    println!("filter_range...");
     warp::header::<String>("Range")
 }
 
