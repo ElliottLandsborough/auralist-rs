@@ -790,7 +790,12 @@ async fn internal_get_range(file: File, range_header: String) -> Result<impl war
     let metadata = file.metadata().await?;
     let size = metadata.len();
     let (start_range, end_range) = get_range_params(&range_header, size)?;
-    let byte_count = end_range - start_range + 1;
+    let mut limited_end_range = end_range;
+    if end_range > size {
+        println!("::::::::::: Range larger than file size detected");
+        limited_end_range = size
+    }
+    let byte_count = limited_end_range - start_range + 1;
     file.seek(SeekFrom::Start(start_range)).await?;
 
     let stream = stream! {
@@ -813,7 +818,7 @@ async fn internal_get_range(file: File, range_header: String) -> Result<impl war
     header_map.insert("Accept-Ranges", HeaderValue::from_str("bytes").unwrap());
     header_map.insert(
         "Content-Range",
-        HeaderValue::from_str(&format!("bytes {}-{}/{}", start_range, end_range, size)).unwrap(),
+        HeaderValue::from_str(&format!("bytes {}-{}/{}", start_range, limited_end_range, size)).unwrap(),
     );
     header_map.insert("Content-Length", HeaderValue::from(byte_count));
     headers.extend(header_map);
