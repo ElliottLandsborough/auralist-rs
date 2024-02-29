@@ -266,6 +266,12 @@ fn load_file_info_into_memory_and_mark_as_warmed(
         drop(mixes);
     } else {
         // add to in memory list of tunes
+        println!("Locking tunes (load_file_info_into_memory_and_mark_as_warmed)...");
+        let mut tunes = tunes_mutex.lock().unwrap();
+        let f = f.clone();
+        tunes.push(f.id);
+        println!("Unlocking tunes (load_file_info_into_memory_and_mark_as_warmed)...");
+        drop(tunes);
     }
 }
 

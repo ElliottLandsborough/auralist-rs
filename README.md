@@ -81,3 +81,9 @@ server {
         }
 }
 ```
+
+## Notes
+
+```
+SELECT path FROM files where duration > 1000 and duration <  10000 and file_ext = 'mp3' ORDER BY path;
+```
