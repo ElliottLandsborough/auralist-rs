@@ -851,15 +851,28 @@ fn random_hash(
 
     println!("Locking selection_mutex (random_hash)...");
     let selection = selection_mutex.lock().unwrap();
-    let random_hash_opt = selection.choose(&mut rand::thread_rng());
+    let ten_random_hashes: Vec<&u32> = selection.choose_multiple(&mut rand::thread_rng(), 30).collect();
 
-    let answer = match random_hash_opt {
-        Some(random_hash_opt) => u32::from(random_hash_opt.clone()),
-        None => 0,
-    };
+    let random_hash_opt: Option<&u32>;
+
+    let mut answer = 0;
+
+    if ten_random_hashes.len() == 0 {
+        // fall back to 'old' random
+        random_hash_opt = selection.choose(&mut rand::thread_rng());
+
+        answer = match random_hash_opt {
+            Some(random_hash_opt) => u32::from(random_hash_opt.clone()),
+            None => 0,
+        };
+    } else {
+        // new 'very random' random
+        let random_hash = ten_random_hashes.choose(&mut rand::thread_rng()).clone().unwrap();        
+        answer = random_hash.clone().clone()
+    }
 
     // wait for 2 seconds
-    thread::sleep(time::Duration::from_secs(2));
+    thread::sleep(time::Duration::from_secs(1));
 
     return answer;
 }
