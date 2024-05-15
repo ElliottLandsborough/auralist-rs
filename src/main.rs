@@ -56,16 +56,17 @@ fn main() {
     let have_been_warmed: Vec<u32> = Vec::new();
     let have_been_warmed_mutex = Arc::new(Mutex::new(have_been_warmed));
 
+    /*
     println!("Loading old data...");
     SQLite::initialize();
-    println!("Finshed loading old data.");
-
     load_old_data(
         files_mutex.clone(),
         have_been_warmed_mutex.clone(),
         mixes_mutex.clone(),
         tunes_mutex.clone(),
     );
+    println!("Finshed loading old data.");
+    */
 
     thread::scope(|s| {
         s.spawn(|| {
@@ -132,8 +133,8 @@ async fn log_queues(
         drop(to_be_warmed);
         drop(have_been_warmed);
 
-        println!("Sleeping for 10 seconds (log_queues)...");
-        thread::sleep(time::Duration::from_secs(10));
+        println!("Sleeping for 60 seconds (log_queues)...");
+        thread::sleep(time::Duration::from_secs(60));
     }
 }
 
@@ -146,6 +147,8 @@ async fn warm(
     have_been_warmed_mutex: Arc<Mutex<Vec<u32>>>,
 ) {
     let mut i = 0;
+    let mut i23 = 0;
+    let mut i2323 = 0;
     loop {
         let mut to_be_warmed = to_be_warmed_mutex.lock().unwrap();
         let hash_to_be_warmed = to_be_warmed.pop();
@@ -180,7 +183,8 @@ async fn warm(
                     f.populate_lofty();
                 }
 
-                f.save_to_database();
+                // sqlite disabled for now
+                //f.save_to_database();
 
                 load_file_info_into_memory_and_mark_as_warmed(
                     f.clone(),
@@ -196,10 +200,24 @@ async fn warm(
                 println!("This file doesn't need to be warmed, it already has been...");
             }
         } else {
+            // The below code is bad code...
             i = i + 1;
-            if i == 10 {
-                println!("Sleeping for 20 seconds (warm)...");
-                thread::sleep(time::Duration::from_secs(20));
+            i23 = i23 + 1;
+            i2323 = i2323 + 1;
+            if i > 3 {
+                println!("Sleeping for 10 seconds, nothing to warm...");
+                i = 0;
+                thread::sleep(time::Duration::from_secs(10));
+            }
+            if i23 > 100 {
+                println!("Sleeping for 100 seconds, nothing to warm...");
+                i23 = 0;
+                thread::sleep(time::Duration::from_secs(100));
+            }
+            if i2323 > 1000 {
+                println!("Sleeping for 1000 seconds, nothing to warm...");
+                i2323 = 0;
+                thread::sleep(time::Duration::from_secs(1000));
             }
         }
     }
@@ -316,12 +334,14 @@ fn get_all_db_files() -> Vec<File> {
 
 #[tokio::main]
 async fn cleanup(plays_mutex: Arc<Mutex<HashMap<String, File>>>) {
-    let interval = Duration::from_secs(5);
+    let interval = Duration::from_secs(600);
     let mut next_time = Instant::now() + interval;
 
     loop {
+        println!("Clearing plays (cleanup)...");
         clear_plays(plays_mutex.clone());
         sleep(next_time - Instant::now());
+        println!("Sleeping for 600 seconds (cleanup)...");
         next_time += interval;
     }
 }
@@ -637,7 +657,7 @@ async fn serve(
         println!("START (route:random)...");
         let all = Arc::clone(&have_been_warmed_mutex);
         let mixes = Arc::clone(&mixes_mutex_1);
-        let tunes: Arc<Mutex<Vec<u32>>> = Arc::clone(&tunes_mutex_1);
+        let tunes = Arc::clone(&tunes_mutex_1);
         let random_hash = random_hash(all, mixes, tunes, mode.to_string());
         let fm = Arc::clone(&files_mutex_1);
         let response = generate_random_response(&fm, &plays_mutex_1, random_hash);
@@ -858,7 +878,7 @@ fn random_hash(
     let mut answer = 0;
 
     if ten_random_hashes.len() == 0 {
-        // fall back to 'old' random
+        println!("WARN: Fall back to 'old random'");
         random_hash_opt = selection.choose(&mut rand::thread_rng());
 
         answer = match random_hash_opt {
@@ -866,13 +886,15 @@ fn random_hash(
             None => 0,
         };
     } else {
-        // new 'very random' random
+        println!("OK: Picked a tune'");
         let random_hash = ten_random_hashes.choose(&mut rand::thread_rng()).clone().unwrap();        
         answer = random_hash.clone().clone()
     }
 
-    // wait for 2 seconds
-    thread::sleep(time::Duration::from_secs(1));
+    // wait for a bit...
+    println!("OK: Waiting for a bit...'");
+    let duration = Duration::new(2, 500_000_000);
+    thread::sleep(duration);
 
     return answer;
 }
