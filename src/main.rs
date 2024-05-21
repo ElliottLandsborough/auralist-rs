@@ -49,6 +49,18 @@ async fn random_selection(
     generate_random_response(random_hash, indexed_files, live_stats)
 }
 
+#[get("/stream/<hash>")]
+async fn stream_file(
+    hash: String,
+    indexed_files: &State<IndexedFiles>,
+    live_stats: &rocket::State<Arc<LiveStats>>,
+) -> Json<FileResponse> {
+    // hash e.g 1f768ac1-6e83-4f12-a4c3-ad37f6d93844
+    let sliced_hash = hash[0..36].to_string();
+    // todo: work out range requests in rocker 0.5.0
+    get_range(range_header, sliced_hash, live_stats)
+}
+
 #[launch]
 fn rocket() -> _ {
     // random ids that need to be sought
@@ -58,6 +70,7 @@ fn rocket() -> _ {
 
     rocket::build()
         .mount("/", routes![random_selection])
+        .mount("/", routes![stream_file])
         .manage(state)
         .manage(Arc::new(LiveStats{plays}))
 }
@@ -192,7 +205,7 @@ fn generate_random_response(
 
     match indexed_files.files.get(&random_hash) {
         Some(file) => random_files.push(file.clone()),
-        _ => println!("Hash is missing from db"),
+        _ => println!("ERROR: Hash is missing from db"),
     };
 
     let mut random_files_hashed: Vec<FileHashed> = Vec::new();
