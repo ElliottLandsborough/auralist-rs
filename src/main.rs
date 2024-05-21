@@ -84,8 +84,8 @@ async fn stream(
     let file_size = file.file_size;
 
     let range_contents = match range {
-        Range(something) => {
-            something
+        Range(any) => {
+            any
         },
         _ => {
             // possibly throw here, not sure.
