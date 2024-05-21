@@ -64,7 +64,7 @@ async fn stream(
 
     // can we get the hash from the list?
     let plays = live_stats.plays.clone();
-    let file_option = match plays.get(hash) {
+    let file_option = match plays.get(&sliced_hash) {
         Some(file) => Some(file.clone()),
         None => None,
     };
