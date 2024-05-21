@@ -28,11 +28,12 @@ mime_guess = "2.0"
 async-stream = "0.3"
 hyper = "1.1"
 rand = "0.8.5"
-#tantivy = "0.21.1"
 murmurhash32 = "0.3.0"
+rocket = { version = "0.5.0", features = ["json"] }
+serde_derive = "1.0.104"
+dashmap = "5.5.3"
 
-[dependencies.rusqlite]
-version = "0.31.0"
-default-features = false # don't include any defaults
-#features = ["backup"] # see rusqlite/blob/master/Cargo.toml
-features = ["backup", "blob", "serde_json", "bundled"]
+[dependencies.rocket_contrib]
+version = "0.4.11"
+default-features = false
+features = ["json"]

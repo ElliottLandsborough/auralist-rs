@@ -26,7 +26,7 @@ build_frontend:
 
 run:
 	docker rm auralist || true
-	docker run --name auralist --restart always --log-opt max-size=1m -p 1337:1337 -v ./files:/files -v ${PWD}/auralist.sqlite:/auralist.sqlite -v ${PWD}/exclusions.txt:/exclusions.txt -d scruples/auralist
+	docker run --name auralist --restart always --log-opt max-size=1m -p 1337:1337 -v ./files:/files -d scruples/auralist
 
 reset: pull kill_if_running run
 

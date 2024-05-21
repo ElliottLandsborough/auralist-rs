@@ -1,7 +1,5 @@
-use crate::database::SQLite;
 use lofty::{Accessor, AudioFile, Probe, Tag, TaggedFileExt};
 use murmurhash32::murmurhash3;
-use rusqlite::params;
 use serde::{Deserialize, Serialize};
 use std::fs::File as StdFsFile;
 use std::path::Path;
@@ -126,47 +124,6 @@ impl File {
         self.accessed_at = 0;
         self.parse_fail = false;
         println!("END populate_from_path()...");
-    }
-
-    pub fn save_to_database(&self) {
-        let conn = SQLite::initialize();
-
-        match conn.execute(
-            "INSERT OR REPLACE INTO files (id, path, file_name, file_ext, file_size, file_modified, title, artist, album, duration, indexed_at, accessed_at, parse_fail) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
-            params![
-                self.id,
-                self.path,
-                self.file_name,
-                self.file_ext,
-                self.file_size,
-                self.file_modified.to_string(),
-                self.title,
-                self.artist,
-                self.album,
-                self.duration,
-                self.indexed_at,
-                self.accessed_at,
-                self.parse_fail,
-            ],
-        ) {
-            Ok(_) => println!("Inserting into files..."),
-            Err(err) => println!("Update failed (files): {}", err),
-        }
-
-        match conn.execute(
-            "INSERT INTO search (path, file_name, file_ext, title, artist, album) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-            params![
-                self.path,
-                self.file_name,
-                self.file_ext,
-                self.title,
-                self.artist,
-                self.album,
-            ],
-        ) {
-            Ok(_) => println!("Inserting into search..."),
-            Err(err) => println!("Update failed (search): {}", err),
-        }
     }
 
     pub fn populate_lofty(&mut self) {
