@@ -194,8 +194,9 @@ fn random_hash(mode: String, state: &State<IndexedFiles>) -> u32 {
         };
     } else {
         println!("OK: Picked a tune'");
-        let random_hash = ten_random_hashes.choose(&mut rand::thread_rng()).clone().unwrap();        
-        answer = random_hash.clone().clone()
+        let borrowerd_random_hash = ten_random_hashes.choose(&mut rand::thread_rng()).clone().unwrap(); 
+        let random_hash = *borrowerd_random_hash;    
+        answer = *random_hash;
     }
 
     return answer;
