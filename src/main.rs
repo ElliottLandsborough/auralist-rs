@@ -51,6 +51,9 @@ async fn random(
 
 use rocket::response::stream::{Event, EventStream};
 use rocket::tokio::time::{interval, Duration};
+use std::{cmp::min, io::SeekFrom};
+use tokio::io::{AsyncReadExt, AsyncSeekExt};
+use std::borrow::Cow;
 
 #[get("/<hash>")]
 async fn stream(
@@ -111,42 +114,13 @@ async fn stream(
 
     let guess = mime_guess::from_ext(&file.file_ext).first().unwrap();
     let mime = guess.essence_str();
-    let file = tokio::fs::File::open(file.path).await;
+    let mut file_contents = tokio::fs::File::open(file.path).await.unwrap();
 
-    //file.seek(SeekFrom::Start(start_range)).await?;
+    file_contents.seek(SeekFrom::Start(start_range)).await;
 
-    EventStream! {
-        let mut timer = interval(Duration::from_secs(2));
-        loop {
-            yield Event::data("ping");
-            timer.tick().await;
-        }
-    }
-}
+    let byte_count = end_range - start_range + 1;
 
-
-/*
-get_range(file: File, range_header: String) -> String {
-
-    let byte_count = limited_end_range - start_range + 1;
-    file.seek(SeekFrom::Start(start_range)).await?;
-
-    let stream = stream! {
-        let bufsize = 16384;
-        let cycles = byte_count / bufsize as u64 + 1;
-        let mut sent_bytes: u64 = 0;
-        for _ in 0..cycles {
-            let mut buffer: Vec<u8> = vec![0; min(byte_count - sent_bytes, bufsize) as usize];
-            let bytes_read = file.read_exact(&mut buffer).await.unwrap();
-            sent_bytes += bytes_read as u64;
-            yield Ok(buffer) as Result<Vec<u8>, hyper::Error>;
-        }
-    };
-    let body = Body::wrap_stream(stream);
-    let mut response = warp::reply::Response::new(body);
-
-    let headers = response.headers_mut();
-    let mut header_map = HeaderMap::new();
+    /*
     header_map.insert("Content-Type", HeaderValue::from_str(&mime).unwrap());
     header_map.insert("Accept-Ranges", HeaderValue::from_str("bytes").unwrap());
     header_map.insert(
@@ -155,10 +129,29 @@ get_range(file: File, range_header: String) -> String {
     );
     header_map.insert("Content-Length", HeaderValue::from(byte_count));
     headers.extend(header_map);
+    */
+    EventStream! {
+        let bufsize = 16384;
+        let cycles = byte_count / bufsize as u64 + 1;
+        //let mut timer = interval(Duration::from_secs(2));
+        let mut sent_bytes: u64 = 0;
+        for _ in 0..cycles {
+            let mut buffer: Vec<u8> = vec![0; min(byte_count - sent_bytes, bufsize) as usize];
+            let bytes_read = file_contents.read_exact(&mut buffer).await.unwrap();
+            sent_bytes += bytes_read as u64;
+            let string = std::str::from_utf8(&buffer).unwrap().to_string();
+            let cow = Cow::from(string);
+            yield Event::data(cow);
+            //timer.tick().await;
+        }
+        /*
+        loop {
+            yield Event::data("ping");
+            timer.tick().await;
+        }
+        */
+    }
 }
-*/
-
-
 
 #[launch]
 fn rocket() -> _ {
