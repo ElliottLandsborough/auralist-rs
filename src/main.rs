@@ -58,15 +58,47 @@ async fn stream(
 ) -> Json<FileResponse> {
     // hash e.g 1f768ac1-6e83-4f12-a4c3-ad37f6d93844
     let sliced_hash = hash[0..36].to_string();
-    // todo: work out range requests in rocker 0.5.0
-    //get_range(range_header, sliced_hash, live_stats)
 
-    println!("Range: {:?}", range);
+    // can we get the hash from the list?
+    let plays = live_stats.plays.clone();
+    let file_option = match plays.get(hash.clone()) {
+        Some(file) => Some(file.clone()),
+        None => None,
+    };
+
+    // If no, panic
+    if file_option.is_none() {
+        println!(
+            "Error in internal_get_range: get_file_from_hash returned None for hash: `{:?}`",
+            hash.to_string()
+        );
+        // Todo: return something proper
+        panic!("Error in internal_get_range: get_file_from_hash returned None for hash: `{:?}`", hash.to_string());
+    }
+
+    let file = file_option.unwrap();
+
+    let file_size = file.file_size;
+
+    let range_contents = match range {
+        Range(something) => {
+            something
+        },
+        _ => {
+            // possibly throw here, not sure.
+            "bytes=0-0"
+        }
+    };
+
+    let parsed_range_contents = parse_range_header(range_contents, file_size);
+
+    println!("PARSED Range CONTENTS: {:?}", parsed_range_contents);
 
     // these lines are temp
     let random_hash = random_hash(sliced_hash.to_string(), indexed_files);
     generate_random_response(random_hash, indexed_files, live_stats)
 }
+
 
 #[launch]
 fn rocket() -> _ {
@@ -244,31 +276,11 @@ fn generate_random_response(
 
 
 /*
-// This function retrives the range of bytes requested by the web client
-pub async fn get_range(
-    range_header: String,
-    hash: String,
-    plays_mutex: Arc<Mutex<HashMap<String, File>>>,
-) -> Result<impl warp::Reply, Rejection> {
-    let file_option = get_file_from_hash(hash.clone(), plays_mutex);
+get_range(file: File, range_header: String) -> String {
 
-    if file_option.is_none() {
-        println!(
-            "Error in internal_get_range: get_file_from_hash returned None for hash: `{:?}`",
-            hash.to_string()
-        );
-        return Err(warp::reject::custom(InvalidParameter));
-    }
-
-    let file = file_option.unwrap();
-
-    return internal_get_range(file, range_header).await.map_err(|e| {
-        println!("Error in get_range: {}", e.message);
-        warp::reject()
-    });
-}
-
-async fn internal_get_range(file: File, range_header: String) -> Result<impl warp::Reply, Error> {
+    //let (start_range, end_range) = get_range_params(&range_header, size)?;
+    //println!("Ranging from {} to {}", start_range, end_range);
+    /*
     let path = &file.path;
     let guess = mime_guess::from_ext(&file.file_ext).first().unwrap();
     let mime = guess.essence_str();
@@ -310,10 +322,14 @@ async fn internal_get_range(file: File, range_header: String) -> Result<impl war
     headers.extend(header_map);
 
     Ok(response)
+    */
+    return "blarg".to_string();
 }
+
+
 */
 
-// The code below extracts the range
+// The code below extracts the range header from the request
 use rocket::request::{self, Request, FromRequest};
 use rocket::request::Outcome;
 use rocket::http::Status;
@@ -335,9 +351,62 @@ impl<'r> FromRequest<'r> for Range<'r> {
         let range = req.headers().get_one("Range");
         match range {
             Some(range) => {
-                Outcome::Success(Range(&range))
+                // Limit initial range to 100 characters
+                let mut n = range.len();
+                if range.len() > 100 {
+                    n = 100;
+                }
+                Outcome::Success(Range(&range[0..n]))
             }
             None => Outcome::Error((Status::BadRequest, RangeError::Missing)),
+        }
+    }
+}
+
+// Borrowed from warp-range
+use std::num::ParseIntError;
+
+fn parse_range_header(range: &str, size: u64) -> Result<(u64, u64), Error> {
+    let range: Vec<String> = range
+        .replace("bytes=", "")
+        .split("-")
+        .filter_map(|n| {
+            if n.len() > 0 {
+                Some(n.to_string())
+            } else {
+                None
+            }
+        })
+        .collect();
+    let start = if range.len() > 0 {
+        range[0].parse::<u64>()?
+    } else {
+        0
+    };
+    let end = if range.len() > 1 {
+        range[1].parse::<u64>()?
+    } else {
+        size - 1
+    };
+    Ok((start, end))
+}
+
+#[derive(Debug)]
+struct Error {
+    message: String,
+}
+
+impl From<std::io::Error> for Error {
+    fn from(err: std::io::Error) -> Self {
+        Error {
+            message: err.to_string(),
+        }
+    }
+}
+impl From<ParseIntError> for Error {
+    fn from(err: ParseIntError) -> Self {
+        Error {
+            message: err.to_string(),
         }
     }
 }
