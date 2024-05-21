@@ -5,7 +5,6 @@ mod music;
 use std::collections::HashMap;
 use crate::music::File;
 use walkdir::WalkDir;
-use murmurhash32::murmurhash3;
 use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use rand::prelude::SliceRandom;
@@ -13,6 +12,7 @@ use rocket::State;
 use crate::music::FileHashed;
 use rocket::serde::json::Json;
 use dashmap::DashMap;
+use rocket::fs::FileServer;
 
 struct IndexedFiles {
     pub files: HashMap<u32, File>,
@@ -39,8 +39,8 @@ struct FileResponse {
     pub data: Vec<FileHashed>,
 }
 
-#[get("/delay/<selection>")]
-async fn random_selection(
+#[get("/<selection>")]
+async fn random(
     selection: String,
     indexed_files: &State<IndexedFiles>,
     live_stats: &rocket::State<Arc<LiveStats>>,
@@ -49,8 +49,8 @@ async fn random_selection(
     generate_random_response(random_hash, indexed_files, live_stats)
 }
 
-#[get("/stream/<hash>")]
-async fn stream_file(
+#[get("/<hash>")]
+async fn stream(
     hash: String,
     indexed_files: &State<IndexedFiles>,
     live_stats: &rocket::State<Arc<LiveStats>>,
@@ -58,7 +58,11 @@ async fn stream_file(
     // hash e.g 1f768ac1-6e83-4f12-a4c3-ad37f6d93844
     let sliced_hash = hash[0..36].to_string();
     // todo: work out range requests in rocker 0.5.0
-    get_range(range_header, sliced_hash, live_stats)
+    //get_range(range_header, sliced_hash, live_stats)
+
+    // these lines are temp
+    let random_hash = random_hash(sliced_hash.to_string(), indexed_files);
+    generate_random_response(random_hash, indexed_files, live_stats)
 }
 
 #[launch]
@@ -69,8 +73,9 @@ fn rocket() -> _ {
     let state = synchronous_file_scan();
 
     rocket::build()
-        .mount("/", routes![random_selection])
-        .mount("/", routes![stream_file])
+        .mount("/", FileServer::from("./static"))
+        .mount("/random", routes![random])
+        .mount("/stream", routes![stream])
         .manage(state)
         .manage(Arc::new(LiveStats{plays}))
 }
@@ -232,3 +237,74 @@ fn generate_random_response(
 
     Json(response)
 }
+
+
+/*
+// This function retrives the range of bytes requested by the web client
+pub async fn get_range(
+    range_header: String,
+    hash: String,
+    plays_mutex: Arc<Mutex<HashMap<String, File>>>,
+) -> Result<impl warp::Reply, Rejection> {
+    let file_option = get_file_from_hash(hash.clone(), plays_mutex);
+
+    if file_option.is_none() {
+        println!(
+            "Error in internal_get_range: get_file_from_hash returned None for hash: `{:?}`",
+            hash.to_string()
+        );
+        return Err(warp::reject::custom(InvalidParameter));
+    }
+
+    let file = file_option.unwrap();
+
+    return internal_get_range(file, range_header).await.map_err(|e| {
+        println!("Error in get_range: {}", e.message);
+        warp::reject()
+    });
+}
+
+async fn internal_get_range(file: File, range_header: String) -> Result<impl warp::Reply, Error> {
+    let path = &file.path;
+    let guess = mime_guess::from_ext(&file.file_ext).first().unwrap();
+    let mime = guess.essence_str();
+    let mut file = tokio::fs::File::open(path).await?;
+    let metadata = file.metadata().await?;
+    let size = metadata.len();
+    let (start_range, end_range) = get_range_params(&range_header, size)?;
+    let mut limited_end_range = end_range;
+    if end_range > size {
+        println!("::::::::::: Range larger than file size detected");
+        limited_end_range = size
+    }
+    let byte_count = limited_end_range - start_range + 1;
+    file.seek(SeekFrom::Start(start_range)).await?;
+
+    let stream = stream! {
+        let bufsize = 16384;
+        let cycles = byte_count / bufsize as u64 + 1;
+        let mut sent_bytes: u64 = 0;
+        for _ in 0..cycles {
+            let mut buffer: Vec<u8> = vec![0; min(byte_count - sent_bytes, bufsize) as usize];
+            let bytes_read = file.read_exact(&mut buffer).await.unwrap();
+            sent_bytes += bytes_read as u64;
+            yield Ok(buffer) as Result<Vec<u8>, hyper::Error>;
+        }
+    };
+    let body = Body::wrap_stream(stream);
+    let mut response = warp::reply::Response::new(body);
+
+    let headers = response.headers_mut();
+    let mut header_map = HeaderMap::new();
+    header_map.insert("Content-Type", HeaderValue::from_str(&mime).unwrap());
+    header_map.insert("Accept-Ranges", HeaderValue::from_str("bytes").unwrap());
+    header_map.insert(
+        "Content-Range",
+        HeaderValue::from_str(&format!("bytes {}-{}/{}", start_range, limited_end_range, size)).unwrap(),
+    );
+    header_map.insert("Content-Length", HeaderValue::from(byte_count));
+    headers.extend(header_map);
+
+    Ok(response)
+}
+*/
