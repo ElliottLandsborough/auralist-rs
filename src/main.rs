@@ -49,19 +49,22 @@ async fn random(
     generate_random_response(random_hash, indexed_files, live_stats)
 }
 
+use rocket::response::stream::{Event, EventStream};
+use rocket::tokio::time::{interval, Duration};
+
 #[get("/<hash>")]
 async fn stream(
     hash: &str,
-    indexed_files: &State<IndexedFiles>,
+    //indexed_files: &State<IndexedFiles>,
     live_stats: &rocket::State<Arc<LiveStats>>,
     range: Range<'_>,
-) -> Json<FileResponse> {
+) -> EventStream![] {
     // hash e.g 1f768ac1-6e83-4f12-a4c3-ad37f6d93844
     let sliced_hash = hash[0..36].to_string();
 
     // can we get the hash from the list?
     let plays = live_stats.plays.clone();
-    let file_option = match plays.get(hash.clone()) {
+    let file_option = match plays.get(hash) {
         Some(file) => Some(file.clone()),
         None => None,
     };
@@ -90,14 +93,71 @@ async fn stream(
         }
     };
 
-    let parsed_range_contents = parse_range_header(range_contents, file_size);
+    let (mut start_range, mut end_range) = parse_range_header(range_contents, file_size).unwrap();
 
-    println!("PARSED Range CONTENTS: {:?}", parsed_range_contents);
+    // Don't trust user input
+    if start_range > file_size {
+        println!("ERROR: Start range larger than file size detected");
+        start_range = file_size;
+    }
+    if end_range > file_size {
+        println!("ERROR: End range larger than file size detected");
+        end_range = file_size;
+    }
+    if start_range > end_range {
+        println!("ERROR: Start range larger than end range detected");
+        start_range = end_range;
+    }
 
-    // these lines are temp
-    let random_hash = random_hash(sliced_hash.to_string(), indexed_files);
-    generate_random_response(random_hash, indexed_files, live_stats)
+    let guess = mime_guess::from_ext(&file.file_ext).first().unwrap();
+    let mime = guess.essence_str();
+    let file = tokio::fs::File::open(file.path).await;
+
+    //file.seek(SeekFrom::Start(start_range)).await?;
+
+    EventStream! {
+        let mut timer = interval(Duration::from_secs(2));
+        loop {
+            yield Event::data("ping");
+            timer.tick().await;
+        }
+    }
 }
+
+
+/*
+get_range(file: File, range_header: String) -> String {
+
+    let byte_count = limited_end_range - start_range + 1;
+    file.seek(SeekFrom::Start(start_range)).await?;
+
+    let stream = stream! {
+        let bufsize = 16384;
+        let cycles = byte_count / bufsize as u64 + 1;
+        let mut sent_bytes: u64 = 0;
+        for _ in 0..cycles {
+            let mut buffer: Vec<u8> = vec![0; min(byte_count - sent_bytes, bufsize) as usize];
+            let bytes_read = file.read_exact(&mut buffer).await.unwrap();
+            sent_bytes += bytes_read as u64;
+            yield Ok(buffer) as Result<Vec<u8>, hyper::Error>;
+        }
+    };
+    let body = Body::wrap_stream(stream);
+    let mut response = warp::reply::Response::new(body);
+
+    let headers = response.headers_mut();
+    let mut header_map = HeaderMap::new();
+    header_map.insert("Content-Type", HeaderValue::from_str(&mime).unwrap());
+    header_map.insert("Accept-Ranges", HeaderValue::from_str("bytes").unwrap());
+    header_map.insert(
+        "Content-Range",
+        HeaderValue::from_str(&format!("bytes {}-{}/{}", start_range, limited_end_range, size)).unwrap(),
+    );
+    header_map.insert("Content-Length", HeaderValue::from(byte_count));
+    headers.extend(header_map);
+}
+*/
+
 
 
 #[launch]
@@ -274,61 +334,6 @@ fn generate_random_response(
     Json(response)
 }
 
-
-/*
-get_range(file: File, range_header: String) -> String {
-
-    //let (start_range, end_range) = get_range_params(&range_header, size)?;
-    //println!("Ranging from {} to {}", start_range, end_range);
-    /*
-    let path = &file.path;
-    let guess = mime_guess::from_ext(&file.file_ext).first().unwrap();
-    let mime = guess.essence_str();
-    let mut file = tokio::fs::File::open(path).await?;
-    let metadata = file.metadata().await?;
-    let size = metadata.len();
-    let (start_range, end_range) = get_range_params(&range_header, size)?;
-    let mut limited_end_range = end_range;
-    if end_range > size {
-        println!("::::::::::: Range larger than file size detected");
-        limited_end_range = size
-    }
-    let byte_count = limited_end_range - start_range + 1;
-    file.seek(SeekFrom::Start(start_range)).await?;
-
-    let stream = stream! {
-        let bufsize = 16384;
-        let cycles = byte_count / bufsize as u64 + 1;
-        let mut sent_bytes: u64 = 0;
-        for _ in 0..cycles {
-            let mut buffer: Vec<u8> = vec![0; min(byte_count - sent_bytes, bufsize) as usize];
-            let bytes_read = file.read_exact(&mut buffer).await.unwrap();
-            sent_bytes += bytes_read as u64;
-            yield Ok(buffer) as Result<Vec<u8>, hyper::Error>;
-        }
-    };
-    let body = Body::wrap_stream(stream);
-    let mut response = warp::reply::Response::new(body);
-
-    let headers = response.headers_mut();
-    let mut header_map = HeaderMap::new();
-    header_map.insert("Content-Type", HeaderValue::from_str(&mime).unwrap());
-    header_map.insert("Accept-Ranges", HeaderValue::from_str("bytes").unwrap());
-    header_map.insert(
-        "Content-Range",
-        HeaderValue::from_str(&format!("bytes {}-{}/{}", start_range, limited_end_range, size)).unwrap(),
-    );
-    header_map.insert("Content-Length", HeaderValue::from(byte_count));
-    headers.extend(header_map);
-
-    Ok(response)
-    */
-    return "blarg".to_string();
-}
-
-
-*/
-
 // The code below extracts the range header from the request
 use rocket::request::{self, Request, FromRequest};
 use rocket::request::Outcome;
@@ -342,7 +347,6 @@ enum RangeError {
     Missing,
 }
 
-//impl<'a, 'r> FromRequest<'a, 'r> for Token {
 #[rocket::async_trait]
 impl<'r> FromRequest<'r> for Range<'r> {
     type Error = RangeError;
