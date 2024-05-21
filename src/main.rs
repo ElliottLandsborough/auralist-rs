@@ -41,7 +41,7 @@ struct FileResponse {
 
 #[get("/<selection>")]
 async fn random(
-    selection: String,
+    selection: &str,
     indexed_files: &State<IndexedFiles>,
     live_stats: &rocket::State<Arc<LiveStats>>,
 ) -> Json<FileResponse> {
@@ -51,14 +51,17 @@ async fn random(
 
 #[get("/<hash>")]
 async fn stream(
-    hash: String,
+    hash: &str,
     indexed_files: &State<IndexedFiles>,
     live_stats: &rocket::State<Arc<LiveStats>>,
+    range: Range<'_>,
 ) -> Json<FileResponse> {
     // hash e.g 1f768ac1-6e83-4f12-a4c3-ad37f6d93844
     let sliced_hash = hash[0..36].to_string();
     // todo: work out range requests in rocker 0.5.0
     //get_range(range_header, sliced_hash, live_stats)
+
+    println!("Range: {:?}", range);
 
     // these lines are temp
     let random_hash = random_hash(sliced_hash.to_string(), indexed_files);
@@ -309,3 +312,32 @@ async fn internal_get_range(file: File, range_header: String) -> Result<impl war
     Ok(response)
 }
 */
+
+// The code below extracts the range
+use rocket::request::{self, Request, FromRequest};
+use rocket::request::Outcome;
+use rocket::http::Status;
+
+#[derive(Debug)]
+struct Range<'r>(&'r str);
+
+#[derive(Debug)]
+enum RangeError {
+    Missing,
+}
+
+//impl<'a, 'r> FromRequest<'a, 'r> for Token {
+#[rocket::async_trait]
+impl<'r> FromRequest<'r> for Range<'r> {
+    type Error = RangeError;
+
+    async fn from_request(req: &'r Request<'_>) -> request::Outcome<Self, Self::Error> {
+        let range = req.headers().get_one("Range");
+        match range {
+            Some(range) => {
+                Outcome::Success(Range(&range))
+            }
+            None => Outcome::Error((Status::BadRequest, RangeError::Missing)),
+        }
+    }
+}
