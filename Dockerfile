@@ -1,4 +1,4 @@
-FROM rust:alpine as builder
+FROM rustlang/rust:nightly-alpine as builder
 
 RUN USER=root
 
