@@ -27,6 +27,7 @@ warp = "0.3"
 async-stream = "0.3"
 mime_guess = "2.0"
 hyper = "1.1"
+parking_lot = "0.12.2"
 
 [dependencies.rocket_contrib]
 version = "0.4.11"

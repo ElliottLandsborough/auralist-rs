@@ -3,10 +3,11 @@ use std::thread;
 mod music;
 use crate::music::File;
 use crate::music::FileHashed;
+use parking_lot::{Mutex, MutexGuard};
 use rand::prelude::SliceRandom;
 use std::collections::HashMap;
 use std::convert::Infallible;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::Duration;
 use std::time::{SystemTime, UNIX_EPOCH};
 use walkdir::WalkDir;
@@ -291,9 +292,9 @@ fn generate_random_response(
             .as_secs();
 
         println!("Locking plays (generate_random_response)...");
-        let mut plays = plays_mutex.lock().unwrap();
+        let mut plays = plays_mutex.lock();
         plays.insert(file_hashed.path.clone(), file);
-        drop(plays);
+        MutexGuard::unlock_fair(plays);
         println!("Unlocked plays (generate_random_response)...");
     }
 
@@ -388,12 +389,12 @@ fn get_file_from_hash_old(
     plays_mutex: Arc<Mutex<HashMap<String, File>>>,
 ) -> Option<music::File> {
     println!("Locking plays (get_file_from_hash)...");
-    let plays = plays_mutex.lock().unwrap();
+    let plays = plays_mutex.lock();
     let result = match plays.get(&hash) {
         Some(file) => Some(file.clone()),
         None => None,
     };
-    drop(plays);
+    MutexGuard::unlock_fair(plays);
     println!("Unlocked plays (get_file_from_hash)...");
 
     println!("END (get_file_from_hash)...");
