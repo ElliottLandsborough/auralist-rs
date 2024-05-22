@@ -74,19 +74,6 @@ impl File {
         }
     }
 
-    pub fn insert_into_memory(
-        &mut self,
-        files_mutex: std::sync::Arc<std::sync::Mutex<std::collections::HashMap<u32, File>>>,
-    ) {
-        println!("Locking files (insert_into_memory)...");
-        let mut files: std::sync::MutexGuard<'_, std::collections::HashMap<u32, File>> =
-            files_mutex.lock().unwrap();
-        println!("Inserting file into memory...");
-        files.insert(self.id, self.clone());
-        println!("Unlocking files (insert_into_memory)...");
-        drop(files);
-    }
-
     // Gets basic file info - no tags
     pub fn populate_from_path(&mut self) {
         println!("Run populate_from_path()...");

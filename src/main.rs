@@ -1,4 +1,7 @@
-#[macro_use] extern crate rocket;
+#![feature(proc_macro_hygiene, decl_macro)]
+#[macro_use]
+extern crate rocket;
+use rocket_seek_stream::SeekStream;
 
 use serde::{Deserialize, Serialize};
 mod music;
@@ -49,19 +52,11 @@ async fn random(
     generate_random_response(random_hash, indexed_files, live_stats)
 }
 
-use rocket::response::stream::{Event, EventStream};
-use rocket::tokio::time::{interval, Duration};
-use std::{cmp::min, io::SeekFrom};
-use tokio::io::{AsyncReadExt, AsyncSeekExt};
-use std::borrow::Cow;
-
 #[get("/<hash>")]
-async fn stream(
+fn stream<'a>(
     hash: &str,
-    //indexed_files: &State<IndexedFiles>,
     live_stats: &rocket::State<Arc<LiveStats>>,
-    range: Range<'_>,
-) -> EventStream![] {
+) -> std::io::Result<SeekStream<'a>> {
     // hash e.g 1f768ac1-6e83-4f12-a4c3-ad37f6d93844
     let sliced_hash = hash[0..36].to_string();
 
@@ -84,73 +79,7 @@ async fn stream(
 
     let file = file_option.unwrap();
 
-    let file_size = file.file_size;
-
-    let range_contents = match range {
-        Range(any) => {
-            any
-        },
-        _ => {
-            // possibly throw here, not sure.
-            "bytes=0-0"
-        }
-    };
-
-    let (mut start_range, mut end_range) = parse_range_header(range_contents, file_size).unwrap();
-
-    // Don't trust user input
-    if start_range > file_size {
-        println!("ERROR: Start range larger than file size detected");
-        start_range = file_size;
-    }
-    if end_range > file_size {
-        println!("ERROR: End range larger than file size detected");
-        end_range = file_size;
-    }
-    if start_range > end_range {
-        println!("ERROR: Start range larger than end range detected");
-        start_range = end_range;
-    }
-
-    let guess = mime_guess::from_ext(&file.file_ext).first().unwrap();
-    let mime = guess.essence_str();
-    let mut file_contents = tokio::fs::File::open(file.path).await.unwrap();
-
-    file_contents.seek(SeekFrom::Start(start_range)).await;
-
-    let byte_count = end_range - start_range + 1;
-
-    /*
-    header_map.insert("Content-Type", HeaderValue::from_str(&mime).unwrap());
-    header_map.insert("Accept-Ranges", HeaderValue::from_str("bytes").unwrap());
-    header_map.insert(
-        "Content-Range",
-        HeaderValue::from_str(&format!("bytes {}-{}/{}", start_range, limited_end_range, size)).unwrap(),
-    );
-    header_map.insert("Content-Length", HeaderValue::from(byte_count));
-    headers.extend(header_map);
-    */
-    EventStream! {
-        let bufsize = 16384;
-        let cycles = byte_count / bufsize as u64 + 1;
-        //let mut timer = interval(Duration::from_secs(2));
-        let mut sent_bytes: u64 = 0;
-        for _ in 0..cycles {
-            let mut buffer: Vec<u8> = vec![0; min(byte_count - sent_bytes, bufsize) as usize];
-            let bytes_read = file_contents.read_exact(&mut buffer).await.unwrap();
-            sent_bytes += bytes_read as u64;
-            let string = std::str::from_utf8(&buffer).unwrap().to_string();
-            let cow = Cow::from(string);
-            yield Event::data(cow);
-            //timer.tick().await;
-        }
-        /*
-        loop {
-            yield Event::data("ping");
-            timer.tick().await;
-        }
-        */
-    }
+    SeekStream::from_path(file.path)
 }
 
 #[launch]
@@ -325,85 +254,4 @@ fn generate_random_response(
     };
 
     Json(response)
-}
-
-// The code below extracts the range header from the request
-use rocket::request::{self, Request, FromRequest};
-use rocket::request::Outcome;
-use rocket::http::Status;
-
-#[derive(Debug)]
-struct Range<'r>(&'r str);
-
-#[derive(Debug)]
-enum RangeError {
-    Missing,
-}
-
-#[rocket::async_trait]
-impl<'r> FromRequest<'r> for Range<'r> {
-    type Error = RangeError;
-
-    async fn from_request(req: &'r Request<'_>) -> request::Outcome<Self, Self::Error> {
-        let range = req.headers().get_one("Range");
-        match range {
-            Some(range) => {
-                // Limit initial range to 100 characters
-                let mut n = range.len();
-                if range.len() > 100 {
-                    n = 100;
-                }
-                Outcome::Success(Range(&range[0..n]))
-            }
-            None => Outcome::Error((Status::BadRequest, RangeError::Missing)),
-        }
-    }
-}
-
-// Borrowed from warp-range
-use std::num::ParseIntError;
-
-fn parse_range_header(range: &str, size: u64) -> Result<(u64, u64), Error> {
-    let range: Vec<String> = range
-        .replace("bytes=", "")
-        .split("-")
-        .filter_map(|n| {
-            if n.len() > 0 {
-                Some(n.to_string())
-            } else {
-                None
-            }
-        })
-        .collect();
-    let start = if range.len() > 0 {
-        range[0].parse::<u64>()?
-    } else {
-        0
-    };
-    let end = if range.len() > 1 {
-        range[1].parse::<u64>()?
-    } else {
-        size - 1
-    };
-    Ok((start, end))
-}
-
-#[derive(Debug)]
-struct Error {
-    message: String,
-}
-
-impl From<std::io::Error> for Error {
-    fn from(err: std::io::Error) -> Self {
-        Error {
-            message: err.to_string(),
-        }
-    }
-}
-impl From<ParseIntError> for Error {
-    fn from(err: ParseIntError) -> Self {
-        Error {
-            message: err.to_string(),
-        }
-    }
 }
