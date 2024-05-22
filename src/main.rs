@@ -1,17 +1,16 @@
-use std::thread;
 use serde::{Deserialize, Serialize};
+use std::thread;
 mod music;
 use crate::music::File;
-use walkdir::WalkDir;
-use std::time::{SystemTime, UNIX_EPOCH};
-use rand::prelude::SliceRandom;
 use crate::music::FileHashed;
-use dashmap::DashMap;
+use rand::prelude::SliceRandom;
 use std::collections::HashMap;
 use std::convert::Infallible;
-use warp::{http::Method, http::StatusCode, Filter, Rejection, Reply};
-use std::time::Duration;
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
+use std::time::{SystemTime, UNIX_EPOCH};
+use walkdir::WalkDir;
+use warp::{http::Method, http::StatusCode, Filter, Rejection, Reply};
 
 #[derive(Debug)]
 struct InvalidParameter;
@@ -50,20 +49,14 @@ fn main() {
     thread::scope(|s| {
         s.spawn(|| {
             println!("Starting web server...");
-            serve(
-                indexed_files,
-                plays_mutex,
-            );
+            serve(indexed_files, plays_mutex);
         });
         println!("Hello from the main... \\m/");
     });
 }
 
 #[tokio::main]
-async fn serve(
-    indexed_files: IndexedFiles,
-    plays_mutex: Arc<Mutex<HashMap<String, File>>>,
-) {
+async fn serve(indexed_files: IndexedFiles, plays_mutex: Arc<Mutex<HashMap<String, File>>>) {
     println!("SERVING");
 
     let plays_mutex_1 = Arc::clone(&plays_mutex);
@@ -86,16 +79,15 @@ async fn serve(
         });
 
     // domain.tld/random
-    let random = warp::path!("random" / String)
-        .map(move |selection: String| {
-            println!("START (route:random)...");
-            let random_hash = random_hash(selection.to_string(), indexed_files.clone());
-            let duration = Duration::new(0, 500_000_000);
-            thread::sleep(duration);
-            let response = generate_random_response(random_hash, indexed_files.clone(), &plays_mutex_1);
-            println!("END (route:random)...");
-            response
-        });
+    let random = warp::path!("random" / String).map(move |selection: String| {
+        println!("START (route:random)...");
+        let random_hash = random_hash(selection.to_string(), indexed_files.clone());
+        let duration = Duration::new(0, 500_000_000);
+        thread::sleep(duration);
+        let response = generate_random_response(random_hash, indexed_files.clone(), &plays_mutex_1);
+        println!("END (route:random)...");
+        response
+    });
 
     // domain.tld/stream/[anything] (parses range headers)
     let stream = warp::path!("stream" / String)
@@ -111,12 +103,11 @@ async fn serve(
         .map(with_partial_content_status);
 
     // domain.tld/stream/[anything] (when stream headers are missing)
-    let download = warp::path!("stream" / String)
-        .and_then(move |hash: String| {
-            // hash e.g 1f768ac1-6e83-4f12-a4c3-ad37f6d93844
-            let sliced_hash = hash[0..36].to_string();
-            get_range("".to_string(), sliced_hash, Arc::clone(&plays_mutex_3))
-        });
+    let download = warp::path!("stream" / String).and_then(move |hash: String| {
+        // hash e.g 1f768ac1-6e83-4f12-a4c3-ad37f6d93844
+        let sliced_hash = hash[0..36].to_string();
+        get_range("".to_string(), sliced_hash, Arc::clone(&plays_mutex_3))
+    });
 
     let cors = warp::cors()
         .allow_origins(vec![
@@ -130,11 +121,7 @@ async fn serve(
     //.allow_headers(vec!["Sec-Fetch-Mode", "Referer", "Origin", "Access-Control-Request-Method", "Access-Control-Request-Headers"]);
 
     let gets = warp::get()
-        .and(default
-            .or(random)
-            .or(stream)
-            .or(download)
-            .or(js))
+        .and(default.or(random).or(stream).or(download).or(js))
         .with(cors)
         .recover(handle_rejection);
 
@@ -168,12 +155,15 @@ fn synchronous_file_scan() -> IndexedFiles {
         }
     }
 
-    return IndexedFiles{files, mixes, tunes, all};
+    return IndexedFiles {
+        files,
+        mixes,
+        tunes,
+        all,
+    };
 }
 
-fn get_files(
-    directory: std::string::String,
-) -> HashMap<u32, File> {
+fn get_files(directory: std::string::String) -> HashMap<u32, File> {
     println!("Walking files...");
 
     let mut files: HashMap<u32, File> = HashMap::new();
@@ -215,7 +205,7 @@ fn get_files(
 
             files.insert(f.id, f);
         }
-    };
+    }
 
     return files;
 }
@@ -239,12 +229,18 @@ fn random_hash(mode: String, state: IndexedFiles) -> u32 {
         selection = state.tunes.clone();
     }
 
-    if mode != "tunes" && mode != "mixes" {
-        println!("WARN: Mode is not 'tunes' or 'mixes', defaulting to 'mixes'");
+    if mode == "all" {
+        selection = state.all.clone();
+    }
+
+    if mode != "mixes" && mode != "tunes" && mode != "all" {
+        println!("WARN: Mode not recognized, defaulting to 'mixes'");
         selection = state.mixes.clone();
     }
 
-    let ten_random_hashes: Vec<&u32> = selection.choose_multiple(&mut rand::thread_rng(), 30).collect();
+    let ten_random_hashes: Vec<&u32> = selection
+        .choose_multiple(&mut rand::thread_rng(), 30)
+        .collect();
 
     let random_hash_opt: Option<&u32>;
 
@@ -260,8 +256,11 @@ fn random_hash(mode: String, state: IndexedFiles) -> u32 {
         };
     } else {
         println!("OK: Picked a tune'");
-        let borrowerd_random_hash = ten_random_hashes.choose(&mut rand::thread_rng()).clone().unwrap(); 
-        let random_hash = *borrowerd_random_hash;    
+        let borrowerd_random_hash = ten_random_hashes
+            .choose(&mut rand::thread_rng())
+            .clone()
+            .unwrap();
+        let random_hash = *borrowerd_random_hash;
         answer = *random_hash;
     }
 
@@ -401,6 +400,7 @@ fn get_file_from_hash_old(
     return result;
 }
 
+/*
 // This function retrives the range of bytes requested by the web client
 async fn get_range_new(
     range_header: String,
@@ -428,7 +428,7 @@ async fn get_range_new(
         //panic!("Error in internal_get_range: get_file_from_hash returned None for hash: `{:?}`", sliced_hash.to_string());
         return Err(warp::reject::custom(InvalidParameter));
     }
-    
+
     let file = file_option.unwrap();
 
     return internal_get_range(file, range_header).await.map_err(|e| {
@@ -436,6 +436,7 @@ async fn get_range_new(
         warp::reject()
     });
 }
+*/
 
 async fn internal_get_range(file: File, range_header: String) -> Result<impl warp::Reply, Error> {
     let path = &file.path;
@@ -473,7 +474,11 @@ async fn internal_get_range(file: File, range_header: String) -> Result<impl war
     header_map.insert("Accept-Ranges", HeaderValue::from_str("bytes").unwrap());
     header_map.insert(
         "Content-Range",
-        HeaderValue::from_str(&format!("bytes {}-{}/{}", start_range, limited_end_range, size)).unwrap(),
+        HeaderValue::from_str(&format!(
+            "bytes {}-{}/{}",
+            start_range, limited_end_range, size
+        ))
+        .unwrap(),
     );
     header_map.insert("Content-Length", HeaderValue::from(byte_count));
     headers.extend(header_map);
