@@ -456,7 +456,8 @@ async fn internal_get_range(file: File, range_header: String) -> Result<impl war
     file.seek(SeekFrom::Start(start_range)).await?;
 
     let stream = stream! {
-        let bufsize = 16384;
+        //let bufsize = 16384; // 16kb?
+        let bufsize = 1024 * 512; // 512kb
         let cycles = byte_count / bufsize as u64 + 1;
         let mut sent_bytes: u64 = 0;
         for _ in 0..cycles {
