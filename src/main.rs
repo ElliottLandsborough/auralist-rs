@@ -1,8 +1,10 @@
 #![feature(proc_macro_hygiene, decl_macro)]
 #[macro_use]
 extern crate rocket;
-use rocket_seek_stream::SeekStream;
 
+use std::thread;
+use rocket::tokio::time::Duration;
+use rocket_seek_stream::SeekStream;
 use serde::{Deserialize, Serialize};
 mod music;
 use std::collections::HashMap;
@@ -49,6 +51,8 @@ async fn random(
     live_stats: &rocket::State<Arc<LiveStats>>,
 ) -> Json<FileResponse> {
     let random_hash = random_hash(selection.to_string(), indexed_files);
+    let duration = Duration::new(0, 500_000_000);
+    thread::sleep(duration);
     generate_random_response(random_hash, indexed_files, live_stats)
 }
 
