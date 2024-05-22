@@ -31,3 +31,12 @@ run:
 reset: pull kill_if_running run
 
 hard_reset: kill_if_running force_prune truncate_database pull run;
+
+build_local:
+	rm -r static || true
+	yarn run build
+	cargo run
+
+update_all:
+	yarn upgrade
+	cargo update
