@@ -893,7 +893,7 @@ fn random_hash(
 
     // wait for a bit...
     println!("OK: Waiting for a bit...'");
-    let duration = Duration::new(2, 500_000_000);
+    let duration = Duration::new(0, 500_000_000);
     thread::sleep(duration);
 
     return answer;
