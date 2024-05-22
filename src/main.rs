@@ -293,7 +293,8 @@ fn generate_random_response(
         println!("Locking plays (generate_random_response)...");
         let mut plays = plays_mutex.lock().unwrap();
         plays.insert(file_hashed.path.clone(), file);
-        println!("Unlocking plays (generate_random_response)...");
+        drop(plays);
+        println!("Unlocked plays (generate_random_response)...");
     }
 
     let response = FileResponse {
@@ -393,8 +394,8 @@ fn get_file_from_hash_old(
         Some(file) => Some(file.clone()),
         None => None,
     };
-    println!("Unocking plays (get_file_from_hash)...");
     drop(plays);
+    println!("Unlocked plays (get_file_from_hash)...");
 
     println!("END (get_file_from_hash)...");
     return result;
