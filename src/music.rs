@@ -1,5 +1,7 @@
 use crate::database::SQLite;
-use lofty::{Accessor, AudioFile, Probe, Tag, TaggedFileExt};
+use lofty::prelude::{Accessor, AudioFile, TaggedFileExt};
+use lofty::probe::Probe;
+use lofty::tag::Tag;
 use murmurhash32::murmurhash3;
 use rusqlite::params;
 use serde::{Deserialize, Serialize};
