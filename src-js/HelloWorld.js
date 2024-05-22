@@ -133,7 +133,7 @@ class HelloWorld extends React.Component {
 
   stop() {
     if (this.isPlaying() || this.state.howl) {
-      this.state.howl.stop();
+      this.state.howl.unload();
     }
     this.reportPlayState();
     this.setState({
@@ -167,8 +167,12 @@ class HelloWorld extends React.Component {
         });
       },
       onend: function() {
+        console.log('File ended. Playing next random one...');
         self.getAndPlay();
-      }
+      },
+      onstop: function() {
+        console.log('File stopped.');
+      },
     });
 
     let soundID = this.state.howl.play();
