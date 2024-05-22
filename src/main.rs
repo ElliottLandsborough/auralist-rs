@@ -351,7 +351,6 @@ impl From<ParseIntError> for Error {
 
 // This function filters and extracts the "Range"-Header
 fn filter_range() -> impl Filter<Extract = (String,), Error = Rejection> + Copy {
-    println!("filter_range...");
     warp::header::<String>("Range")
 }
 
