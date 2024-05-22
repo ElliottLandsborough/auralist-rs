@@ -11,6 +11,7 @@ use std::collections::HashMap;
 use std::convert::Infallible;
 use warp::{http::Method, http::StatusCode, Filter, Rejection, Reply};
 use std::time::Duration;
+use std::sync::{Arc, Mutex};
 
 #[derive(Debug)]
 struct InvalidParameter;
@@ -41,14 +42,17 @@ struct FileResponse {
 
 fn main() {
     let indexed_files = synchronous_file_scan();
-    let plays: DashMap<String, File> = DashMap::new();
+
+    // random ids that need to be sought
+    let plays: HashMap<String, File> = HashMap::new();
+    let plays_mutex = Arc::new(Mutex::new(plays));
 
     thread::scope(|s| {
         s.spawn(|| {
             println!("Starting web server...");
             serve(
                 indexed_files,
-                &plays,
+                plays_mutex,
             );
         });
         println!("Hello from the main... \\m/");
@@ -58,9 +62,13 @@ fn main() {
 #[tokio::main]
 async fn serve(
     indexed_files: IndexedFiles,
-    plays: &DashMap<String, File>,
+    plays_mutex: Arc<Mutex<HashMap<String, File>>>,
 ) {
     println!("SERVING");
+
+    let plays_mutex_1 = Arc::clone(&plays_mutex);
+    let plays_mutex_2 = Arc::clone(&plays_mutex);
+    let plays_mutex_3 = Arc::clone(&plays_mutex);
 
     // default e.g https://domain.tld
     let default = warp::path::end().and(warp::fs::file("static/index.html"));
@@ -78,15 +86,16 @@ async fn serve(
         });
 
     // domain.tld/random
-    let random = warp::path!("random" / String).map(move |selection: String| {
-        println!("START (route:random)...");
-        let random_hash = random_hash(selection.to_string(), indexed_files.clone());
-        //let duration = Duration::new(0, 500_000_000);
-        //thread::sleep(duration);
-        let response = generate_random_response(random_hash, indexed_files.clone(), plays);
-        println!("END (route:random)...");
-        return response;
-    });
+    let random = warp::path!("random" / String)
+        .map(move |selection: String| {
+            println!("START (route:random)...");
+            let random_hash = random_hash(selection.to_string(), indexed_files.clone());
+            let duration = Duration::new(0, 500_000_000);
+            thread::sleep(duration);
+            let response = generate_random_response(random_hash, indexed_files.clone(), &plays_mutex_1);
+            println!("END (route:random)...");
+            response
+        });
 
     // domain.tld/stream/[anything] (parses range headers)
     let stream = warp::path!("stream" / String)
@@ -97,17 +106,17 @@ async fn serve(
             // hash e.g 1f768ac1-6e83-4f12-a4c3-ad37f6d93844
             let sliced_hash = hash[0..36].to_string();
 
-            get_range(range_header, sliced_hash, &plays)
+            get_range(range_header, sliced_hash, Arc::clone(&plays_mutex_2))
         })
         .map(with_partial_content_status);
 
     // domain.tld/stream/[anything] (when stream headers are missing)
-    let download = warp::path!("stream" / String).and_then(move |hash: String| {
-        // hash e.g 1f768ac1-6e83-4f12-a4c3-ad37f6d93844
-        let sliced_hash = hash[0..36].to_string();
-        let range = get_range("".to_string(), sliced_hash, &plays);
-        return range;
-    });
+    let download = warp::path!("stream" / String)
+        .and_then(move |hash: String| {
+            // hash e.g 1f768ac1-6e83-4f12-a4c3-ad37f6d93844
+            let sliced_hash = hash[0..36].to_string();
+            get_range("".to_string(), sliced_hash, Arc::clone(&plays_mutex_3))
+        });
 
     let cors = warp::cors()
         .allow_origins(vec![
@@ -121,7 +130,11 @@ async fn serve(
     //.allow_headers(vec!["Sec-Fetch-Mode", "Referer", "Origin", "Access-Control-Request-Method", "Access-Control-Request-Headers"]);
 
     let gets = warp::get()
-        .and(default.or(random).or(stream).or(download).or(js))
+        .and(default
+            .or(random)
+            .or(stream)
+            .or(download)
+            .or(js))
         .with(cors)
         .recover(handle_rejection);
 
@@ -208,7 +221,7 @@ fn get_files(
 }
 
 fn random_hash(mode: String, state: IndexedFiles) -> u32 {
-    let mut selection = state.all.clone();
+    let mut selection = Vec::new();
 
     if mode.len() == 0 {
         println!("WARN: Mode is empty, defaulting to 'mixes'");
@@ -218,11 +231,16 @@ fn random_hash(mode: String, state: IndexedFiles) -> u32 {
         println!("WARN: Mode too huge, defaulting to 'mixes'");
     }
 
+    if mode == "mixes" {
+        selection = state.mixes.clone();
+    }
+
     if mode == "tunes" {
         selection = state.tunes.clone();
     }
 
-    if mode == "mixes" {
+    if mode != "tunes" && mode != "mixes" {
+        println!("WARN: Mode is not 'tunes' or 'mixes', defaulting to 'mixes'");
         selection = state.mixes.clone();
     }
 
@@ -247,17 +265,13 @@ fn random_hash(mode: String, state: IndexedFiles) -> u32 {
         answer = *random_hash;
     }
 
-    println!("OK: Waiting for a bit...'");
-    let duration = Duration::new(0, 500_000_000);
-    thread::sleep(duration);
-
     return answer;
 }
 
 fn generate_random_response(
     random_hash: u32,
     indexed_files: IndexedFiles,
-    plays: &DashMap<String, File>,
+    plays_mutex: &Arc<Mutex<HashMap<String, File>>>,
 ) -> warp::reply::Json {
     let mut random_files: Vec<File> = Vec::new();
 
@@ -277,8 +291,10 @@ fn generate_random_response(
             .unwrap()
             .as_secs();
 
-        
+        println!("Locking plays (generate_random_response)...");
+        let mut plays = plays_mutex.lock().unwrap();
         plays.insert(file_hashed.path.clone(), file);
+        println!("Unlocking plays (generate_random_response)...");
     }
 
     let response = FileResponse {
@@ -334,27 +350,73 @@ impl From<ParseIntError> for Error {
 }
 
 // This function filters and extracts the "Range"-Header
-pub fn filter_range() -> impl Filter<Extract = (String,), Error = Rejection> + Copy {
+fn filter_range() -> impl Filter<Extract = (String,), Error = Rejection> + Copy {
     println!("filter_range...");
     warp::header::<String>("Range")
 }
 
 // This function adds the "206 Partial Content" header
-pub fn with_partial_content_status<T: Reply>(reply: T) -> WithStatus<T> {
+fn with_partial_content_status<T: Reply>(reply: T) -> WithStatus<T> {
     warp::reply::with_status(reply, StatusCode::PARTIAL_CONTENT)
 }
 
 // This function retrives the range of bytes requested by the web client
 pub async fn get_range(
     range_header: String,
-    sliced_hash: String,
-    plays: &DashMap<String, File>,
+    hash: String,
+    plays_mutex: Arc<Mutex<HashMap<String, File>>>,
 ) -> Result<impl warp::Reply, Rejection> {
+    let file_option = get_file_from_hash_old(hash.clone(), plays_mutex);
+
+    if file_option.is_none() {
+        println!(
+            "Error in internal_get_range: get_file_from_hash returned None for hash: `{:?}`",
+            hash.to_string()
+        );
+        return Err(warp::reject::custom(InvalidParameter));
+    }
+
+    let file = file_option.unwrap();
+
+    return internal_get_range(file, range_header).await.map_err(|e| {
+        println!("Error in get_range: {}", e.message);
+        warp::reject()
+    });
+}
+
+fn get_file_from_hash_old(
+    hash: String,
+    plays_mutex: Arc<Mutex<HashMap<String, File>>>,
+) -> Option<music::File> {
+    println!("Locking plays (get_file_from_hash)...");
+    let plays = plays_mutex.lock().unwrap();
+    let result = match plays.get(&hash) {
+        Some(file) => Some(file.clone()),
+        None => None,
+    };
+    println!("Unocking plays (get_file_from_hash)...");
+    drop(plays);
+
+    println!("END (get_file_from_hash)...");
+    return result;
+}
+
+// This function retrives the range of bytes requested by the web client
+async fn get_range_new(
+    range_header: String,
+    sliced_hash: String,
+    plays_mutex: Arc<Mutex<HashMap<String, File>>>,
+) -> Result<impl warp::Reply, Rejection> {
+    // Acquire and drop mutex
+    println!("Locking plays (get_range)...");
+    let plays = plays_mutex.lock().unwrap();
     // can we get the hash from the list?
     let file_option = match plays.get(&sliced_hash) {
         Some(file) => Some(file.clone()),
         None => None,
     };
+    println!("Unlocking plays (get_range)...");
+    drop(plays);
 
     // If no, panic
     if file_option.is_none() {
@@ -363,7 +425,8 @@ pub async fn get_range(
             sliced_hash.to_string()
         );
         // Todo: return something proper
-        panic!("Error in internal_get_range: get_file_from_hash returned None for hash: `{:?}`", sliced_hash.to_string());
+        //panic!("Error in internal_get_range: get_file_from_hash returned None for hash: `{:?}`", sliced_hash.to_string());
+        return Err(warp::reject::custom(InvalidParameter));
     }
     
     let file = file_option.unwrap();
@@ -384,7 +447,7 @@ async fn internal_get_range(file: File, range_header: String) -> Result<impl war
     let (start_range, end_range) = parse_range_header(&range_header, size)?;
     let mut limited_end_range = end_range;
     if end_range > size {
-        println!("::::::::::: Range larger than file size detected");
+        println!("ERROR: Range larger than file size detected");
         limited_end_range = size
     }
     let byte_count = limited_end_range - start_range + 1;
