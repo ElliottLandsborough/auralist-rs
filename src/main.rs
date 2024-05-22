@@ -1,33 +1,28 @@
-#![feature(proc_macro_hygiene, decl_macro)]
-#[macro_use]
-extern crate rocket;
-
 use std::thread;
-use rocket::tokio::time::Duration;
-use rocket_seek_stream::SeekStream;
 use serde::{Deserialize, Serialize};
 mod music;
-use std::collections::HashMap;
 use crate::music::File;
 use walkdir::WalkDir;
-use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use rand::prelude::SliceRandom;
-use rocket::State;
 use crate::music::FileHashed;
-use rocket::serde::json::Json;
 use dashmap::DashMap;
-use rocket::fs::FileServer;
+use std::collections::HashMap;
+use std::convert::Infallible;
+use warp::{http::Method, http::StatusCode, Filter, Rejection, Reply};
+use std::time::Duration;
 
+#[derive(Debug)]
+struct InvalidParameter;
+
+impl warp::reject::Reject for InvalidParameter {}
+
+#[derive(Clone)]
 struct IndexedFiles {
     pub files: HashMap<u32, File>,
     pub mixes: Vec<u32>,
     pub tunes: Vec<u32>,
     pub all: Vec<u32>,
-}
-
-struct LiveStats {
-    pub plays: DashMap<String, File>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -44,61 +39,93 @@ struct FileResponse {
     pub data: Vec<FileHashed>,
 }
 
-#[get("/<selection>")]
-async fn random(
-    selection: &str,
-    indexed_files: &State<IndexedFiles>,
-    live_stats: &rocket::State<Arc<LiveStats>>,
-) -> Json<FileResponse> {
-    let random_hash = random_hash(selection.to_string(), indexed_files);
-    let duration = Duration::new(0, 500_000_000);
-    thread::sleep(duration);
-    generate_random_response(random_hash, indexed_files, live_stats)
-}
-
-#[get("/<hash>")]
-fn stream<'a>(
-    hash: &str,
-    live_stats: &rocket::State<Arc<LiveStats>>,
-) -> std::io::Result<SeekStream<'a>> {
-    // hash e.g 1f768ac1-6e83-4f12-a4c3-ad37f6d93844
-    let sliced_hash = hash[0..36].to_string();
-
-    // can we get the hash from the list?
-    let plays = live_stats.plays.clone();
-    let file_option = match plays.get(&sliced_hash) {
-        Some(file) => Some(file.clone()),
-        None => None,
-    };
-
-    // If no, panic
-    if file_option.is_none() {
-        println!(
-            "Error in internal_get_range: get_file_from_hash returned None for hash: `{:?}`",
-            hash.to_string()
-        );
-        // Todo: return something proper
-        panic!("Error in internal_get_range: get_file_from_hash returned None for hash: `{:?}`", hash.to_string());
-    }
-
-    let file = file_option.unwrap();
-
-    SeekStream::from_path(file.path)
-}
-
-#[launch]
-fn rocket() -> _ {
-    // random ids that need to be sought
+fn main() {
+    let indexed_files = synchronous_file_scan();
     let plays: DashMap<String, File> = DashMap::new();
 
-    let state = synchronous_file_scan();
+    thread::scope(|s| {
+        s.spawn(|| {
+            println!("Starting web server...");
+            serve(
+                indexed_files,
+                &plays,
+            );
+        });
+        println!("Hello from the main... \\m/");
+    });
+}
 
-    rocket::build()
-        .mount("/", FileServer::from("./static"))
-        .mount("/random", routes![random])
-        .mount("/stream", routes![stream])
-        .manage(state)
-        .manage(Arc::new(LiveStats{plays}))
+#[tokio::main]
+async fn serve(
+    indexed_files: IndexedFiles,
+    plays: &DashMap<String, File>,
+) {
+    println!("SERVING");
+
+    // default e.g https://domain.tld
+    let default = warp::path::end().and(warp::fs::file("static/index.html"));
+
+    // domain.tld/js/*
+    let js = warp::path("js")
+        .and(warp::fs::dir("static/js"))
+        .map(|res: warp::fs::File| {
+            // cache for 23 days
+            warp::reply::with_header(
+                res,
+                "cache-control",
+                "Cache-Control: public, max-age 1987200, s-maxage 1987200, immutable",
+            )
+        });
+
+    // domain.tld/random
+    let random = warp::path!("random" / String).map(move |selection: String| {
+        println!("START (route:random)...");
+        let random_hash = random_hash(selection.to_string(), indexed_files.clone());
+        //let duration = Duration::new(0, 500_000_000);
+        //thread::sleep(duration);
+        let response = generate_random_response(random_hash, indexed_files.clone(), plays);
+        println!("END (route:random)...");
+        return response;
+    });
+
+    // domain.tld/stream/[anything] (parses range headers)
+    let stream = warp::path!("stream" / String)
+        .and(filter_range())
+        .and_then(move |hash: String, range_header: String| {
+            println!("START (stream/[anything])...");
+
+            // hash e.g 1f768ac1-6e83-4f12-a4c3-ad37f6d93844
+            let sliced_hash = hash[0..36].to_string();
+
+            get_range(range_header, sliced_hash, &plays)
+        })
+        .map(with_partial_content_status);
+
+    // domain.tld/stream/[anything] (when stream headers are missing)
+    let download = warp::path!("stream" / String).and_then(move |hash: String| {
+        // hash e.g 1f768ac1-6e83-4f12-a4c3-ad37f6d93844
+        let sliced_hash = hash[0..36].to_string();
+        let range = get_range("".to_string(), sliced_hash, &plays);
+        return range;
+    });
+
+    let cors = warp::cors()
+        .allow_origins(vec![
+            "https://randomsound.uk",
+            "http://localhost:1338",
+            "http://localhost:1337",
+            "http://192.168.2.41:1337",
+        ])
+        .allow_methods(&[Method::GET, Method::POST, Method::OPTIONS])
+        .allow_headers(vec!["Authorization", "Content-Type", "User-Agent"]);
+    //.allow_headers(vec!["Sec-Fetch-Mode", "Referer", "Origin", "Access-Control-Request-Method", "Access-Control-Request-Headers"]);
+
+    let gets = warp::get()
+        .and(default.or(random).or(stream).or(download).or(js))
+        .with(cors)
+        .recover(handle_rejection);
+
+    warp::serve(gets).run(([0, 0, 0, 0], 1337)).await;
 }
 
 fn synchronous_file_scan() -> IndexedFiles {
@@ -180,7 +207,7 @@ fn get_files(
     return files;
 }
 
-fn random_hash(mode: String, state: &State<IndexedFiles>) -> u32 {
+fn random_hash(mode: String, state: IndexedFiles) -> u32 {
     let mut selection = state.all.clone();
 
     if mode.len() == 0 {
@@ -220,14 +247,18 @@ fn random_hash(mode: String, state: &State<IndexedFiles>) -> u32 {
         answer = *random_hash;
     }
 
+    println!("OK: Waiting for a bit...'");
+    let duration = Duration::new(0, 500_000_000);
+    thread::sleep(duration);
+
     return answer;
 }
 
 fn generate_random_response(
     random_hash: u32,
-    indexed_files: &State<IndexedFiles>,
-    live_stats: &rocket::State<Arc<LiveStats>>,
-) -> Json<FileResponse> {
+    indexed_files: IndexedFiles,
+    plays: &DashMap<String, File>,
+) -> warp::reply::Json {
     let mut random_files: Vec<File> = Vec::new();
 
     match indexed_files.files.get(&random_hash) {
@@ -247,7 +278,7 @@ fn generate_random_response(
             .as_secs();
 
         
-        live_stats.plays.insert(file_hashed.path.clone(), file);
+        plays.insert(file_hashed.path.clone(), file);
     }
 
     let response = FileResponse {
@@ -257,5 +288,157 @@ fn generate_random_response(
         data: random_files_hashed,
     };
 
-    Json(response)
+    warp::reply::json(&response)
+}
+
+async fn handle_rejection(err: Rejection) -> std::result::Result<impl Reply, Infallible> {
+    let (code, message) = if err.is_not_found() {
+        (StatusCode::NOT_FOUND, "Not Found".to_string())
+    } else if err.find::<warp::reject::PayloadTooLarge>().is_some() {
+        (StatusCode::BAD_REQUEST, "Payload too large".to_string())
+    } else {
+        eprintln!("unhandled error: {:?}", err);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Internal Server Error".to_string(),
+        )
+    };
+
+    Ok(warp::reply::with_status(message, code))
+}
+
+// borrowed from warp-range
+use async_stream::stream;
+use std::{cmp::min, io::SeekFrom, num::ParseIntError};
+use tokio::io::{AsyncReadExt, AsyncSeekExt};
+use warp::{http::HeaderValue, hyper::Body, hyper::HeaderMap, reply::WithStatus};
+
+#[derive(Debug)]
+struct Error {
+    message: String,
+}
+
+impl From<std::io::Error> for Error {
+    fn from(err: std::io::Error) -> Self {
+        Error {
+            message: err.to_string(),
+        }
+    }
+}
+impl From<ParseIntError> for Error {
+    fn from(err: ParseIntError) -> Self {
+        Error {
+            message: err.to_string(),
+        }
+    }
+}
+
+// This function filters and extracts the "Range"-Header
+pub fn filter_range() -> impl Filter<Extract = (String,), Error = Rejection> + Copy {
+    println!("filter_range...");
+    warp::header::<String>("Range")
+}
+
+// This function adds the "206 Partial Content" header
+pub fn with_partial_content_status<T: Reply>(reply: T) -> WithStatus<T> {
+    warp::reply::with_status(reply, StatusCode::PARTIAL_CONTENT)
+}
+
+// This function retrives the range of bytes requested by the web client
+pub async fn get_range(
+    range_header: String,
+    sliced_hash: String,
+    plays: &DashMap<String, File>,
+) -> Result<impl warp::Reply, Rejection> {
+    // can we get the hash from the list?
+    let file_option = match plays.get(&sliced_hash) {
+        Some(file) => Some(file.clone()),
+        None => None,
+    };
+
+    // If no, panic
+    if file_option.is_none() {
+        println!(
+            "Error in internal_get_range: get_file_from_hash returned None for hash: `{:?}`",
+            sliced_hash.to_string()
+        );
+        // Todo: return something proper
+        panic!("Error in internal_get_range: get_file_from_hash returned None for hash: `{:?}`", sliced_hash.to_string());
+    }
+    
+    let file = file_option.unwrap();
+
+    return internal_get_range(file, range_header).await.map_err(|e| {
+        println!("Error in get_range: {}", e.message);
+        warp::reject()
+    });
+}
+
+async fn internal_get_range(file: File, range_header: String) -> Result<impl warp::Reply, Error> {
+    let path = &file.path;
+    let guess = mime_guess::from_ext(&file.file_ext).first().unwrap();
+    let mime = guess.essence_str();
+    let mut file = tokio::fs::File::open(path).await?;
+    let metadata = file.metadata().await?;
+    let size = metadata.len();
+    let (start_range, end_range) = parse_range_header(&range_header, size)?;
+    let mut limited_end_range = end_range;
+    if end_range > size {
+        println!("::::::::::: Range larger than file size detected");
+        limited_end_range = size
+    }
+    let byte_count = limited_end_range - start_range + 1;
+    file.seek(SeekFrom::Start(start_range)).await?;
+
+    let stream = stream! {
+        let bufsize = 16384;
+        let cycles = byte_count / bufsize as u64 + 1;
+        let mut sent_bytes: u64 = 0;
+        for _ in 0..cycles {
+            let mut buffer: Vec<u8> = vec![0; min(byte_count - sent_bytes, bufsize) as usize];
+            let bytes_read = file.read_exact(&mut buffer).await.unwrap();
+            sent_bytes += bytes_read as u64;
+            yield Ok(buffer) as Result<Vec<u8>, hyper::Error>;
+        }
+    };
+    let body = Body::wrap_stream(stream);
+    let mut response = warp::reply::Response::new(body);
+
+    let headers = response.headers_mut();
+    let mut header_map = HeaderMap::new();
+    header_map.insert("Content-Type", HeaderValue::from_str(&mime).unwrap());
+    header_map.insert("Accept-Ranges", HeaderValue::from_str("bytes").unwrap());
+    header_map.insert(
+        "Content-Range",
+        HeaderValue::from_str(&format!("bytes {}-{}/{}", start_range, limited_end_range, size)).unwrap(),
+    );
+    header_map.insert("Content-Length", HeaderValue::from(byte_count));
+    headers.extend(header_map);
+
+    Ok(response)
+}
+
+fn parse_range_header(range: &str, size: u64) -> Result<(u64, u64), Error> {
+    let range: Vec<String> = range
+        .replace("bytes=", "")
+        .split("-")
+        .filter_map(|n| {
+            if n.len() > 0 {
+                Some(n.to_string())
+            } else {
+                None
+            }
+        })
+        .collect();
+    let start = if range.len() > 0 {
+        range[0].parse::<u64>()?
+    } else {
+        0
+    };
+    let end = if range.len() > 1 {
+        range[1].parse::<u64>()?
+    } else {
+        size - 1
+    };
+    Ok((start, end))
 }

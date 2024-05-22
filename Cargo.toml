@@ -20,9 +20,12 @@ serde = { version = "1.0", features = ["derive"] }
 uuid = { version = "1.7", features = ["serde", "v4"] }
 rand = "0.8.5"
 murmurhash32 = "0.3.0"
-rocket = { version = "0.5.0", features = ["json"] }
-rocket_seek_stream = "0.2.6"
 dashmap = "5.5.3"
+tokio = { version = "1", features = ["full"] }
+warp = "0.3"
+async-stream = "0.3"
+mime_guess = "2.0"
+hyper = "1.1"
 
 [dependencies.rocket_contrib]
 version = "0.4.11"
