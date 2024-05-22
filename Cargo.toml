@@ -1,4 +1,5 @@
 [package]
+rust-version = "1.80"
 name = "auralist-rs"
 version = "0.0.23"
 authors = ["Elliott Landsborough <elliott.landsborough@gmail.com>"]
