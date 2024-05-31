@@ -377,10 +377,10 @@ pub async fn get_range(
 
     let file = file_option.unwrap();
 
-    return internal_get_range(file, range_header).await.map_err(|e| {
+    internal_get_range(file, range_header).await.map_err(|e| {
         println!("Error in get_range: {}", e.message);
         warp::reject()
-    });
+    })
 }
 
 fn get_file_from_hash_old(
@@ -389,15 +389,12 @@ fn get_file_from_hash_old(
 ) -> Option<music::File> {
     println!("Locking plays (get_file_from_hash)...");
     let plays = plays_mutex.lock();
-    let result = match plays.get(&hash) {
-        Some(file) => Some(file.clone()),
-        None => None,
-    };
+    let result = plays.get(&hash).cloned();
     MutexGuard::unlock_fair(plays);
     println!("Unlocked plays (get_file_from_hash)...");
 
     println!("END (get_file_from_hash)...");
-    return result;
+    result
 }
 
 /*
@@ -457,7 +454,7 @@ async fn internal_get_range(file: File, range_header: String) -> Result<impl war
     let stream = stream! {
         //let bufsize = 16384; // 16kb?
         let bufsize = 1024 * 512; // 512kb
-        let cycles = byte_count / bufsize as u64 + 1;
+        let cycles = byte_count / bufsize + 1;
         let mut sent_bytes: u64 = 0;
         for _ in 0..cycles {
             let mut buffer: Vec<u8> = vec![0; min(byte_count - sent_bytes, bufsize) as usize];
@@ -492,14 +489,14 @@ fn parse_range_header(range: &str, size: u64) -> Result<(u64, u64), Error> {
         .replace("bytes=", "")
         .split("-")
         .filter_map(|n| {
-            if n.len() > 0 {
+            if !n.is_empty() {
                 Some(n.to_string())
             } else {
                 None
             }
         })
         .collect();
-    let start = if range.len() > 0 {
+    let start = if !range.is_empty() {
         range[0].parse::<u64>()?
     } else {
         0
