@@ -281,7 +281,7 @@ fn generate_random_response(
 
     let mut random_files_hashed: Vec<FileHashed> = Vec::new();
     for file in random_files {
-        let file_hashed = file.clone().to_response();
+        let file_hashed = file.clone().hashed_response();
         random_files_hashed.push(file_hashed.clone());
 
         let mut file = file.clone();

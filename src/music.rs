@@ -36,7 +36,7 @@ pub struct FileHashed {
 }
 
 impl File {
-    pub fn to_response(&mut self) -> FileHashed {
+    pub fn hashed_response(&mut self) -> FileHashed {
         FileHashed {
             path: self.get_unique_id(),
             ext: self.file_ext.clone(),
@@ -167,7 +167,7 @@ impl File {
             .as_secs();
 
         self.accessed_at = now;
-        self.path = uuid.clone();
+        self.path.clone_from(&uuid);
 
         uuid
     }
