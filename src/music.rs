@@ -62,7 +62,7 @@ impl File {
         File {
             id: murmurhash3(path_string.as_bytes()),
             path: path_string,
-            file_name: file_name,
+            file_name,
             file_ext: file_ext.clone(),
             file_size: 0,
             file_modified: 0,
@@ -79,7 +79,7 @@ impl File {
     // Gets basic file info - no tags
     pub fn populate_from_path(&mut self) {
         println!("Run populate_from_path()...");
-        if self.path == "" {
+        if self.path.is_empty() {
             panic!("Can't populate from path when file struct has no path!");
         }
 
@@ -125,7 +125,7 @@ impl File {
                     println!(
                         "Error: Can't parse file `{}`. Error: {}",
                         self.path,
-                        error.to_string()
+                        error
                     );
                     return;
                 }
@@ -144,10 +144,7 @@ impl File {
             // If the "primary" tag doesn't exist, we just grab the
             // first tag we can find. Realistically, a tag reader would likely
             // iterate through the tags to find a suitable one.
-            None => match potentially_tagged_file.first_tag() {
-                Some(next_tag) => self.fill_tags(next_tag),
-                None => (),
-            },
+            None => if let Some(next_tag) = potentially_tagged_file.first_tag() { self.fill_tags(next_tag) },
         };
     }
 
