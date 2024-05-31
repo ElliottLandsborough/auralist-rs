@@ -156,12 +156,12 @@ fn synchronous_file_scan() -> IndexedFiles {
         }
     }
 
-    return IndexedFiles {
+    IndexedFiles {
         files,
         mixes,
         tunes,
         all,
-    };
+    }
 }
 
 fn get_files(directory: std::string::String) -> HashMap<u32, File> {
@@ -180,7 +180,7 @@ fn get_files(directory: std::string::String) -> HashMap<u32, File> {
         println!("+ PATH: `{:?}`", &path);
 
         if !path.is_dir() {
-            let mut f = File::new_empty_file_from_path(&path);
+            let mut f = File::new_empty_file_from_path(path);
             f.populate_from_path();
             f.indexed_at = SystemTime::now()
                 .duration_since(UNIX_EPOCH)
@@ -208,13 +208,13 @@ fn get_files(directory: std::string::String) -> HashMap<u32, File> {
         }
     }
 
-    return files;
+    files
 }
 
 fn random_hash(mode: String, state: IndexedFiles) -> u32 {
     let mut selection = Vec::new();
 
-    if mode.len() == 0 {
+    if mode.is_empty() {
         println!("WARN: Mode is empty, defaulting to 'mixes'");
     }
 
@@ -223,20 +223,20 @@ fn random_hash(mode: String, state: IndexedFiles) -> u32 {
     }
 
     if mode == "mixes" {
-        selection = state.mixes.clone();
+        selection.clone_from(&state.mixes);
     }
 
     if mode == "tunes" {
-        selection = state.tunes.clone();
+        selection.clone_from(&state.tunes);
     }
 
     if mode == "all" {
-        selection = state.all.clone();
+        selection.clone_from(&state.all);
     }
 
     if mode != "mixes" && mode != "tunes" && mode != "all" {
         println!("WARN: Mode not recognized, defaulting to 'mixes'");
-        selection = state.mixes.clone();
+        selection.clone_from(&state.mixes);
     }
 
     let ten_random_hashes: Vec<&u32> = selection
@@ -247,25 +247,24 @@ fn random_hash(mode: String, state: IndexedFiles) -> u32 {
 
     let answer: u32;
 
-    if ten_random_hashes.len() == 0 {
+    if ten_random_hashes.is_empty() {
         println!("WARN: Fall back to 'old random'");
         random_hash_opt = selection.choose(&mut rand::thread_rng());
 
         answer = match random_hash_opt {
-            Some(random_hash_opt) => u32::from(random_hash_opt.clone()),
+            Some(random_hash_opt) => *random_hash_opt,
             None => 0,
         };
     } else {
         println!("OK: Picked a tune'");
         let borrowerd_random_hash = ten_random_hashes
             .choose(&mut rand::thread_rng())
-            .clone()
             .unwrap();
         let random_hash = *borrowerd_random_hash;
         answer = *random_hash;
     }
 
-    return answer;
+    answer
 }
 
 fn generate_random_response(
@@ -472,7 +471,7 @@ async fn internal_get_range(file: File, range_header: String) -> Result<impl war
 
     let headers = response.headers_mut();
     let mut header_map = HeaderMap::new();
-    header_map.insert("Content-Type", HeaderValue::from_str(&mime).unwrap());
+    header_map.insert("Content-Type", HeaderValue::from_str(mime).unwrap());
     header_map.insert("Accept-Ranges", HeaderValue::from_str("bytes").unwrap());
     header_map.insert(
         "Content-Range",
