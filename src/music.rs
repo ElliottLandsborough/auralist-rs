@@ -122,11 +122,7 @@ impl File {
                 Ok(file) => file,
                 Err(error) => {
                     self.parse_fail = true;
-                    println!(
-                        "Error: Can't parse file `{}`. Error: {}",
-                        self.path,
-                        error
-                    );
+                    println!("Error: Can't parse file `{}`. Error: {}", self.path, error);
                     return;
                 }
             };
@@ -144,7 +140,11 @@ impl File {
             // If the "primary" tag doesn't exist, we just grab the
             // first tag we can find. Realistically, a tag reader would likely
             // iterate through the tags to find a suitable one.
-            None => if let Some(next_tag) = potentially_tagged_file.first_tag() { self.fill_tags(next_tag) },
+            None => {
+                if let Some(next_tag) = potentially_tagged_file.first_tag() {
+                    self.fill_tags(next_tag)
+                }
+            }
         };
     }
 
