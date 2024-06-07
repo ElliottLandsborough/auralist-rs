@@ -79,6 +79,18 @@ async fn serve(indexed_files: IndexedFiles, plays_mutex: Arc<Mutex<HashMap<Strin
             )
         });
 
+    // domain.tld/img/*
+    let img = warp::path("img")
+        .and(warp::fs::dir("static/img"))
+        .map(|res: warp::fs::File| {
+            // cache for 23 days
+            warp::reply::with_header(
+                res,
+                "cache-control",
+                "Cache-Control: public, max-age 1987200, s-maxage 1987200, immutable",
+            )
+        });
+
     // domain.tld/random
     let random = warp::path!("random" / String).map(move |selection: String| {
         println!("START (route:random)...");
@@ -122,7 +134,7 @@ async fn serve(indexed_files: IndexedFiles, plays_mutex: Arc<Mutex<HashMap<Strin
     //.allow_headers(vec!["Sec-Fetch-Mode", "Referer", "Origin", "Access-Control-Request-Method", "Access-Control-Request-Headers"]);
 
     let gets = warp::get()
-        .and(default.or(random).or(stream).or(download).or(js))
+        .and(default.or(random).or(stream).or(download).or(js).or(img))
         .with(cors)
         .recover(handle_rejection);
 
