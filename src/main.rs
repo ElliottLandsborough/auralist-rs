@@ -81,7 +81,7 @@ async fn serve(indexed_files: IndexedFiles, plays_mutex: Arc<Mutex<HashMap<Strin
 
     // domain.tld/img/*
     let img = warp::path("img")
-        .and(warp::fs::dir("static/img"))
+        .and(warp::fs::dir("static/images"))
         .map(|res: warp::fs::File| {
             // cache for 23 days
             warp::reply::with_header(
